@@ -342,16 +342,19 @@ export default function MosaicGenerator() {
   }, [imageSrc, gridCols]);
 
   const updateCellColor = useCallback((paletteIndex) => {
-    if (!result || selectedCell === null) return;
-    const assignments = [...result.assignments];
-    assignments[selectedCell] = paletteIndex;
-    const counts = new Array(FIXED_PALETTE.length).fill(0);
-    assignments.forEach((idx) => counts[idx]++);
-    const palette = FIXED_PALETTE
-      .map((p, i) => ({ ...p, count: counts[i] }))
-      .filter((p) => p.count > 0);
-    setResult({ ...result, assignments, palette });
-  }, [result, selectedCell]);
+    if (selectedCell === null) return;
+    setResult((currentResult) => {
+      if (!currentResult) return currentResult;
+      const assignments = [...currentResult.assignments];
+      assignments[selectedCell] = paletteIndex;
+      const counts = new Array(FIXED_PALETTE.length).fill(0);
+      assignments.forEach((idx) => counts[idx]++);
+      const palette = FIXED_PALETTE
+        .map((p, i) => ({ ...p, count: counts[i] }))
+        .filter((p) => p.count > 0);
+      return { ...currentResult, assignments, palette };
+    });
+  }, [selectedCell]);
 
   const downloadPng = useCallback((mode) => {
     if (!result) return;
