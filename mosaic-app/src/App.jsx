@@ -52,6 +52,9 @@ function contrastText(rgb) {
 function numberColor(_hex) {
   return "#FFFFFF";
 }
+function numberLabel(code) {
+  return code === "2" ? "" : code;
+}
 // "redmean" perceptual distance — better than plain Euclidean RGB for matching
 function redmean(a, b) {
   const rmean = (a[0] + b[0]) / 2;
@@ -434,7 +437,7 @@ export default function MosaicGenerator() {
       const swatchText = mode === "number" ? "#FFFFFF" : contrastText(p.rgb);
       legend += `<g transform="translate(${lx},${ly})">
         <rect x="0" y="0" width="26" height="26" rx="6" fill="${swatchFill}" stroke="rgba(255,255,255,0.25)"/>
-        <text x="13" y="14" text-anchor="middle" dominant-baseline="middle" font-size="11" font-family="monospace" font-weight="700" fill="${swatchText}">${p.code}</text>
+        <text x="13" y="14" text-anchor="middle" dominant-baseline="middle" font-size="11" font-family="monospace" font-weight="700" fill="${swatchText}">${mode === "number" ? numberLabel(p.code) : p.code}</text>
         <text x="34" y="14" font-size="12" font-family="ui-sans-serif,system-ui,sans-serif" font-weight="600" fill="#FFFFFF" dominant-baseline="middle">${p.name}</text>
       </g>`;
     });
@@ -752,7 +755,7 @@ export default function MosaicGenerator() {
                   fontSize: 9, fontWeight: 800, fontFamily: "ui-monospace, monospace",
                   color: contrastText(p.rgb), border: "1px solid rgba(0,0,0,0.15)",
                 }}>
-                  {p.code}
+                  {numberLabel(p.code)}
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600 }}>{p.name}</span>
                 <span style={{ fontSize: 10, color: "#8A8676", fontFamily: "ui-monospace, monospace" }}>{p.hex}</span>
