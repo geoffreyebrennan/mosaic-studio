@@ -388,7 +388,7 @@ export default function MosaicGenerator() {
     if (!result) return;
     const scale = 24;
     const canvas = document.createElement("canvas");
-    const ctx0 = () => { const c = canvas.getContext("2d"); c.fillStyle = mode === "number" ? NUMBER_BACKGROUND : "#000000"; c.fillRect(0, 0, canvas.width, canvas.height); return c; };
+    const ctx0 = () => { const c = canvas.getContext("2d"); c.fillStyle = "#000000"; c.fillRect(0, 0, canvas.width, canvas.height); return c; };
 
     if (shape === "triangle") {
       const { side, height } = triangleLayout(scale);
@@ -481,7 +481,7 @@ export default function MosaicGenerator() {
     const totalH = Math.ceil(gh + gap + legendH + pad * 2);
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
-<rect x="0" y="0" width="100%" height="100%" fill="${mode === "number" ? NUMBER_BACKGROUND : "#000000"}"/>
+<rect x="0" y="0" width="100%" height="100%" fill="#000000"/>
 <g transform="translate(${pad},${pad})">${cells}</g>
 <g transform="translate(${pad},${pad + gh + gap})">${legend}</g>
 </svg>`;
