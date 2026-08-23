@@ -67,6 +67,10 @@ function numberLabel(p) {
 function numberFill(p) {
   return p.code === "1" ? "#000000" : NUMBER_BACKGROUND;
 }
+function exportStroke(p, mode) {
+  if (p.code === "1") return "#000000";
+  return mode === "number" ? "rgba(128,128,128,0.5)" : "rgba(255,255,255,0.15)";
+}
 // "redmean" perceptual distance — better than plain Euclidean RGB for matching
 function redmean(a, b) {
   const rmean = (a[0] + b[0]) / 2;
@@ -168,7 +172,7 @@ function drawCellToCanvas(ctx, x, y, size, shape, mode, p) {
     ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
-    ctx.lineWidth = Math.max(1, size * 0.03); ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.stroke();
+    ctx.lineWidth = Math.max(1, size * 0.03); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
   }
   ctx.restore();
 
@@ -193,7 +197,7 @@ function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p) {
     ctx.beginPath(); ctx.moveTo(left[0], left[1]); ctx.lineTo(right[0], right[1]); ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
-    ctx.lineWidth = Math.max(1, w * 0.025); ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.stroke();
+    ctx.lineWidth = Math.max(1, w * 0.025); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(left[0], left[1]); ctx.lineTo(right[0], right[1]); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex);
@@ -214,7 +218,7 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p) {
     ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
-    ctx.lineWidth = Math.max(1, R * 0.05); ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.stroke();
+    ctx.lineWidth = Math.max(1, R * 0.05); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex);
       ctx.font = `bold ${Math.round(R * 0.62)}px ui-monospace, monospace`;
@@ -231,7 +235,7 @@ function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p) {
     ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
-    ctx.lineWidth = Math.max(1, R * 0.05); ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.stroke();
+    ctx.lineWidth = Math.max(1, R * 0.05); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex);
       ctx.font = `bold ${Math.round(R * 0.62)}px ui-monospace, monospace`;
@@ -249,7 +253,7 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p) {
   ctx.fillStyle = mode === "color" ? p.hex : numberFill(p);
   ctx.fill();
   ctx.lineWidth = 0.5;
-  ctx.strokeStyle = mode === "color" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)";
+  ctx.strokeStyle = exportStroke(p, mode);
   ctx.stroke();
   if (mode === "number" && p.numberCode) {
     ctx.fillStyle = numberColor(p.hex);
@@ -266,7 +270,7 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
     const { points, cx, cy } = trianglePoints(col, row, w);
     const pts = points.map(([x, y]) => `${x},${y}`).join(" ");
     const fill = mode === "color" ? p.hex : numberFill(p);
-    const stroke = mode === "color" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)";
+    const stroke = exportStroke(p, mode);
     let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="0.5"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, w * 0.64)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
@@ -277,9 +281,9 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
     const { top, right, bottom, left } = isoPoints(cx, cy, w, th);
     const pts = `${top[0]},${top[1]} ${right[0]},${right[1]} ${bottom[0]},${bottom[1]} ${left[0]},${left[1]}`;
     if (mode === "color") {
-      return `<polygon points="${pts}" fill="${p.hex}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>`;
+      return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
     }
-    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="rgba(128,128,128,0.5)" stroke-width="0.75"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="rgba(128,128,128,0.5)" stroke-width="0.75"/>`;
+    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, w * 0.32)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
@@ -287,23 +291,23 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
     const { cx, cy } = hexCenter(col, row, w);
     const { R } = hexLayout(w);
     const pts = hexPoints(cx, cy, R * 0.98).map(([x, y]) => `${x},${y}`).join(" ");
-    if (mode === "color") return `<polygon points="${pts}" fill="${p.hex}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>`;
-    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="rgba(128,128,128,0.5)" stroke-width="0.75"/>`;
+    if (mode === "color") return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
+    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, R * 0.62)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
   if (shape === "circle") {
     const { cx, cy, R } = circleCenter(col, row, w);
-    if (mode === "color") return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>`;
-    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${numberFill(p)}" stroke="rgba(128,128,128,0.5)" stroke-width="0.75"/>`;
+    if (mode === "color") return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
+    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, R * 0.62)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
   // square raster
   const x = col * w, y = row * w;
   let s = mode === "color"
-    ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>`
-    : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${numberFill(p)}" stroke="rgba(128,128,128,0.5)" stroke-width="0.75"/>`;
+    ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`
+    : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
   if (mode === "number" && !skip) {
     const cy = y + w / 2;
     const fs = w * 0.42;
