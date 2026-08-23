@@ -173,12 +173,12 @@ function drawCellToCanvas(ctx, x, y, size, shape, mode, p) {
   ctx.restore();
 
   if (mode === "number" && p.numberCode) {
-    const cy = shape === "triangle" ? y + size * 0.62 : y + size / 2 + size * 0.02;
+    const cy = y + size / 2;
     const fontScale = shape === "triangle" ? 0.32 : 0.42;
     ctx.fillStyle = numberColor(p.hex);
     ctx.font = `bold ${Math.round(size * fontScale)}px ui-monospace, monospace`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(p.code, x + size / 2, cy);
+    ctx.fillText(p.numberCode, x + size / 2, cy);
   }
 }
 function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p) {
@@ -199,7 +199,7 @@ function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p) {
       ctx.fillStyle = numberColor(p.hex);
       ctx.font = `bold ${Math.round(w * 0.32)}px ui-monospace, monospace`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(p.code, cx, cy);
+      ctx.fillText(p.numberCode, cx, cy);
     }
   }
 }
@@ -219,7 +219,7 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p) {
       ctx.fillStyle = numberColor(p.hex);
       ctx.font = `bold ${Math.round(R * 0.62)}px ui-monospace, monospace`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(p.code, cx, cy);
+      ctx.fillText(p.numberCode, cx, cy);
     }
   }
 }
@@ -236,7 +236,7 @@ function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p) {
       ctx.fillStyle = numberColor(p.hex);
       ctx.font = `bold ${Math.round(R * 0.62)}px ui-monospace, monospace`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(p.code, cx, cy);
+      ctx.fillText(p.numberCode, cx, cy);
     }
   }
 }
@@ -255,7 +255,7 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p) {
     ctx.fillStyle = numberColor(p.hex);
     ctx.font = `bold ${Math.round(w * 0.64)}px ui-monospace, monospace`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(p.code, cx, cy);
+    ctx.fillText(p.numberCode, cx, cy);
   }
 }
 
