@@ -70,11 +70,7 @@ function nearestPaletteIndex(rgb) {
   return best;
 }
 
-// triangle (point-up) point ratios within a unit square cell
-const TRIANGLE_POINTS = [[0.5, 0], [1, 1], [0, 1]];
-const TRIANGLE_CLIP = `polygon(${TRIANGLE_POINTS.map(([x, y]) => `${x * 100}% ${y * 100}%`).join(", ")})`;
 function shapeStyle(shape) {
-  if (shape === "triangle") return { clipPath: TRIANGLE_CLIP };
   return {};
 }
 
@@ -127,7 +123,23 @@ function circleCenter(col, row, w) {
   return { cx, cy, R };
 }
 
+const TRIANGLE_H = Math.sqrt(3);
+function triangleLayout(w) {
+  const side = w * 2;
+  return { side, height: w * TRIANGLE_H };
+}
+function trianglePoints(col, row, w) {
+  const { side, height } = triangleLayout(w);
+  const x = col * w;
+  const y = row * height;
+  const points = (col + row) % 2 === 0
+    ? [[x + side / 2, y], [x + side, y + height], [x, y + height]]
+    : [[x, y], [x + side, y], [x + side / 2, y + height]];
+  return { points, cx: x + side / 2, cy: y + height / 2 };
+}
+
 function gridPixelDims(shape, cols, rows, w) {
+  if (shape === "triangle") { const { side, height } = triangleLayout(w); return { gw: cols * w + side / 2, gh: rows * height }; }
   if (shape === "isometric") { const th = w * ISO_TRI_H; return { gw: cols * w + w / 2, gh: (rows + 1) * th }; }
   if (shape === "hexagon") { const { height, vertSpacing } = hexLayout(w); return { gw: cols * w * 0.75 + w, gh: rows * vertSpacing + vertSpacing / 2 + height }; }
   if (shape === "circle") { const { R, hSpace, vSpace } = circleLayout(w); return { gw: (cols - 1) * hSpace + 3 * R, gh: (rows - 1) * vSpace + 2 * R }; }
@@ -138,14 +150,7 @@ function gridPixelDims(shape, cols, rows, w) {
 function drawCellToCanvas(ctx, x, y, size, shape, mode, p) {
   ctx.save();
   ctx.beginPath();
-  if (shape === "triangle") {
-    const pts = TRIANGLE_POINTS.map(([px, py]) => [x + px * size, y + py * size]);
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-    ctx.closePath();
-  } else {
-    ctx.rect(x + 0.5, y + 0.5, size - 1, size - 1);
-  }
+  ctx.rect(x + 0.5, y + 0.5, size - 1, size - 1);
   if (mode === "color") {
     ctx.fillStyle = p.hex; ctx.fill();
     ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.stroke();
@@ -223,10 +228,37 @@ function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p) {
     }
   }
 }
+function drawTriangleCellToCanvas(ctx, col, row, w, mode, p) {
+  const { points, cx, cy } = trianglePoints(col, row, w);
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = mode === "color" ? p.hex : "#000000";
+  ctx.fill();
+  ctx.lineWidth = 0.5;
+  ctx.strokeStyle = mode === "color" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)";
+  ctx.stroke();
+  if (mode === "number" && p.code !== "2") {
+    ctx.fillStyle = numberColor(p.hex);
+    ctx.font = `bold ${Math.round(w * 0.64)}px ui-monospace, monospace`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(p.code, cx, cy);
+  }
+}
 
 // ============ SVG string (export) markup ============
 function svgCellMarkup(shape, col, row, w, mode, p) {
   const skip = p.code === "2";
+  if (shape === "triangle") {
+    const { points, cx, cy } = trianglePoints(col, row, w);
+    const pts = points.map(([x, y]) => `${x},${y}`).join(" ");
+    const fill = mode === "color" ? p.hex : "#000000";
+    const stroke = mode === "color" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)";
+    let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="0.5"/>`;
+    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, w * 0.64)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${p.code}</text>`;
+    return s;
+  }
   if (shape === "isometric") {
     const th = w * ISO_TRI_H;
     const { cx, cy } = isoCenter(col, row, w);
@@ -255,22 +287,14 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
     if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, R * 0.62)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${p.code}</text>`;
     return s;
   }
-  // square / triangle raster
+  // square raster
   const x = col * w, y = row * w;
-  let s;
-  if (shape === "triangle") {
-    const ptsStr = TRIANGLE_POINTS.map(([px, py]) => `${x + px * w},${y + py * w}`).join(" ");
-    s = mode === "color"
-      ? `<polygon points="${ptsStr}" fill="${p.hex}" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>`
-      : `<polygon points="${ptsStr}" fill="#000000" stroke="rgba(255,255,255,0.4)" stroke-width="0.75"/>`;
-  } else {
-    s = mode === "color"
-      ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>`
-      : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="#000000" stroke="rgba(255,255,255,0.4)" stroke-width="0.75"/>`;
-  }
+  let s = mode === "color"
+    ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>`
+    : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="#000000" stroke="rgba(255,255,255,0.4)" stroke-width="0.75"/>`;
   if (mode === "number" && !skip) {
-    const cy = shape === "triangle" ? y + w * 0.62 : y + w / 2;
-    const fs = shape === "triangle" ? w * 0.32 : w * 0.42;
+    const cy = y + w / 2;
+    const fs = w * 0.42;
     s += `<text x="${x + w / 2}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, fs)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${p.code}</text>`;
   }
   return s;
@@ -365,7 +389,16 @@ export default function MosaicGenerator() {
     const canvas = document.createElement("canvas");
     const ctx0 = () => { const c = canvas.getContext("2d"); c.fillStyle = "#000000"; c.fillRect(0, 0, canvas.width, canvas.height); return c; };
 
-    if (shape === "isometric") {
+    if (shape === "triangle") {
+      const { side, height } = triangleLayout(scale);
+      canvas.width = Math.ceil(result.cols * scale + side / 2);
+      canvas.height = Math.ceil(result.rows * height);
+      const ctx = ctx0();
+      for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
+        const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
+        drawTriangleCellToCanvas(ctx, x, y, scale, mode, p);
+      }
+    } else if (shape === "isometric") {
       const th = scale * ISO_TRI_H;
       canvas.width = Math.ceil(result.cols * scale + scale / 2);
       canvas.height = Math.ceil((result.rows + 1) * th);
@@ -463,7 +496,7 @@ export default function MosaicGenerator() {
   const showNumbers = view === "number" && cellPx >= 15;
   const inset = shape === "square" ? 0 : Math.max(1, Math.round(cellPx * 0.07));
   const innerSize = cellPx - inset * 2;
-  const isLattice = shape === "isometric" || shape === "hexagon" || shape === "circle";
+  const isLattice = shape === "triangle" || shape === "isometric" || shape === "hexagon" || shape === "circle";
 
   return (
     <div style={{ background: PAPER, minHeight: "100%", color: INK, fontFamily: "ui-sans-serif, system-ui, sans-serif" }} className="w-full flex flex-col lg:flex-row gap-0">
@@ -613,6 +646,36 @@ export default function MosaicGenerator() {
                   <Loader2 className="animate-spin" style={{ color: MUSTARD }} size={28} />
                 </div>
               )}
+
+              {result && shape === "triangle" && (() => {
+                const { side, height } = triangleLayout(cellPx);
+                const svgW = result.cols * cellPx + side / 2, svgH = result.rows * height;
+                const showNum = view === "number" && cellPx >= 10;
+                return (
+                  <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ background: "#000", display: "block" }}>
+                    {result.assignments.map((idx, i) => {
+                      const p = FIXED_PALETTE[idx];
+                      const col = i % result.cols, row = (i - col) / result.cols;
+                      const { points, cx, cy } = trianglePoints(col, row, cellPx);
+                      const poly = points.map(([x, y]) => `${x},${y}`).join(" ");
+                      const selected = selectedCell === i;
+                      return (
+                        <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
+                          <polygon points={poly} fill={view === "color" ? p.hex : "#000000"}
+                            stroke={selected ? MUSTARD : view === "color" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)"}
+                            strokeWidth={selected ? 2 : 0.5} />
+                          {showNum && p.code !== "2" && (
+                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+                              fontSize={Math.max(6, cellPx * 0.64)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>
+                              {p.code}
+                            </text>
+                          )}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                );
+              })()}
 
               {result && shape === "isometric" && (() => {
                 const w = cellPx, th = w * ISO_TRI_H;
