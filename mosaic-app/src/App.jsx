@@ -8,6 +8,8 @@ const PANEL = "#FBFBF8";
 const LINE = "#D7D2C0";
 const MUSTARD = "#C79A2B";
 const TEAL = "#2F6E6A";
+const NUMBER_BACKGROUND = "#FFFFFF";
+const NUMBER_LABEL = "#808080";
 
 // ---------- fixed 24-colour kit (sampled from the supplied reference chart) ----------
 const FIXED_PALETTE_RAW = [
@@ -48,9 +50,8 @@ function contrastText(rgb) {
   const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return lum > 0.6 ? "#20241F" : "#FFFFFF";
 }
-// number exports are strictly monochrome (black / white / grey) — always white text
 function numberColor(_hex) {
-  return "#FFFFFF";
+  return NUMBER_LABEL;
 }
 function numberLabel(code) {
   return code === "2" ? "" : code;
@@ -155,7 +156,7 @@ function drawCellToCanvas(ctx, x, y, size, shape, mode, p) {
     ctx.fillStyle = p.hex; ctx.fill();
     ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.stroke();
   } else {
-    ctx.fillStyle = "#000000"; ctx.fill();
+    ctx.fillStyle = NUMBER_BACKGROUND; ctx.fill();
     ctx.lineWidth = Math.max(1, size * 0.03); ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.stroke();
   }
   ctx.restore();
@@ -180,7 +181,7 @@ function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p) {
     ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(left[0], left[1]); ctx.lineTo(right[0], right[1]); ctx.stroke();
   } else {
-    ctx.fillStyle = "#000000"; ctx.fill();
+    ctx.fillStyle = NUMBER_BACKGROUND; ctx.fill();
     ctx.lineWidth = Math.max(1, w * 0.025); ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(left[0], left[1]); ctx.lineTo(right[0], right[1]); ctx.stroke();
     if (p.code !== "2") {
@@ -201,7 +202,7 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p) {
     ctx.fillStyle = p.hex; ctx.fill();
     ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
   } else {
-    ctx.fillStyle = "#000000"; ctx.fill();
+    ctx.fillStyle = NUMBER_BACKGROUND; ctx.fill();
     ctx.lineWidth = Math.max(1, R * 0.05); ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.stroke();
     if (p.code !== "2") {
       ctx.fillStyle = numberColor(p.hex);
@@ -218,7 +219,7 @@ function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p) {
     ctx.fillStyle = p.hex; ctx.fill();
     ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
   } else {
-    ctx.fillStyle = "#000000"; ctx.fill();
+    ctx.fillStyle = NUMBER_BACKGROUND; ctx.fill();
     ctx.lineWidth = Math.max(1, R * 0.05); ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.stroke();
     if (p.code !== "2") {
       ctx.fillStyle = numberColor(p.hex);
@@ -234,7 +235,7 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p) {
   ctx.moveTo(points[0][0], points[0][1]);
   for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
   ctx.closePath();
-  ctx.fillStyle = mode === "color" ? p.hex : "#000000";
+  ctx.fillStyle = mode === "color" ? p.hex : NUMBER_BACKGROUND;
   ctx.fill();
   ctx.lineWidth = 0.5;
   ctx.strokeStyle = mode === "color" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)";
@@ -253,7 +254,7 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
   if (shape === "triangle") {
     const { points, cx, cy } = trianglePoints(col, row, w);
     const pts = points.map(([x, y]) => `${x},${y}`).join(" ");
-    const fill = mode === "color" ? p.hex : "#000000";
+    const fill = mode === "color" ? p.hex : NUMBER_BACKGROUND;
     const stroke = mode === "color" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)";
     let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="0.5"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, w * 0.64)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${p.code}</text>`;
@@ -267,7 +268,7 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
     if (mode === "color") {
       return `<polygon points="${pts}" fill="${p.hex}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>`;
     }
-    let s = `<polygon points="${pts}" fill="#000000" stroke="rgba(255,255,255,0.4)" stroke-width="0.75"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="rgba(255,255,255,0.4)" stroke-width="0.75"/>`;
+    let s = `<polygon points="${pts}" fill="${NUMBER_BACKGROUND}" stroke="rgba(128,128,128,0.5)" stroke-width="0.75"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="rgba(128,128,128,0.5)" stroke-width="0.75"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, w * 0.32)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${p.code}</text>`;
     return s;
   }
@@ -276,14 +277,14 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
     const { R } = hexLayout(w);
     const pts = hexPoints(cx, cy, R * 0.98).map(([x, y]) => `${x},${y}`).join(" ");
     if (mode === "color") return `<polygon points="${pts}" fill="${p.hex}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>`;
-    let s = `<polygon points="${pts}" fill="#000000" stroke="rgba(255,255,255,0.4)" stroke-width="0.75"/>`;
+    let s = `<polygon points="${pts}" fill="${NUMBER_BACKGROUND}" stroke="rgba(128,128,128,0.5)" stroke-width="0.75"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, R * 0.62)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${p.code}</text>`;
     return s;
   }
   if (shape === "circle") {
     const { cx, cy, R } = circleCenter(col, row, w);
     if (mode === "color") return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>`;
-    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="#000000" stroke="rgba(255,255,255,0.4)" stroke-width="0.75"/>`;
+    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${NUMBER_BACKGROUND}" stroke="rgba(128,128,128,0.5)" stroke-width="0.75"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, R * 0.62)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${p.code}</text>`;
     return s;
   }
@@ -291,7 +292,7 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
   const x = col * w, y = row * w;
   let s = mode === "color"
     ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>`
-    : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="#000000" stroke="rgba(255,255,255,0.4)" stroke-width="0.75"/>`;
+    : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${NUMBER_BACKGROUND}" stroke="rgba(128,128,128,0.5)" stroke-width="0.75"/>`;
   if (mode === "number" && !skip) {
     const cy = y + w / 2;
     const fs = w * 0.42;
@@ -387,7 +388,7 @@ export default function MosaicGenerator() {
     if (!result) return;
     const scale = 24;
     const canvas = document.createElement("canvas");
-    const ctx0 = () => { const c = canvas.getContext("2d"); c.fillStyle = "#000000"; c.fillRect(0, 0, canvas.width, canvas.height); return c; };
+    const ctx0 = () => { const c = canvas.getContext("2d"); c.fillStyle = mode === "number" ? NUMBER_BACKGROUND : "#000000"; c.fillRect(0, 0, canvas.width, canvas.height); return c; };
 
     if (shape === "triangle") {
       const { side, height } = triangleLayout(scale);
@@ -480,7 +481,7 @@ export default function MosaicGenerator() {
     const totalH = Math.ceil(gh + gap + legendH + pad * 2);
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
-<rect x="0" y="0" width="100%" height="100%" fill="#000000"/>
+<rect x="0" y="0" width="100%" height="100%" fill="${mode === "number" ? NUMBER_BACKGROUND : "#000000"}"/>
 <g transform="translate(${pad},${pad})">${cells}</g>
 <g transform="translate(${pad},${pad + gh + gap})">${legend}</g>
 </svg>`;
