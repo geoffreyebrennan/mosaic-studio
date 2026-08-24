@@ -10,6 +10,8 @@ const MUSTARD = "#C79A2B";
 const TEAL = "#2F6E6A";
 const NUMBER_BACKGROUND = "#FFFFFF";
 const NUMBER_LABEL = "#808080";
+const NUMBER_EXPORT_FONT_SIZE = 9;
+const LEGEND_FONT_SIZE = 14;
 
 // ---------- fixed 24-colour kit (sampled from the supplied reference chart) ----------
 const FIXED_PALETTE_RAW = [
@@ -178,9 +180,8 @@ function drawCellToCanvas(ctx, x, y, size, shape, mode, p) {
 
   if (mode === "number" && p.numberCode) {
     const cy = y + size / 2;
-    const fontScale = shape === "triangle" ? 0.32 : 0.42;
     ctx.fillStyle = numberColor(p.hex);
-    ctx.font = `bold ${Math.round(size * fontScale)}px ui-monospace, monospace`;
+    ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(p.numberCode, x + size / 2, cy);
   }
@@ -201,7 +202,7 @@ function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p) {
     ctx.beginPath(); ctx.moveTo(left[0], left[1]); ctx.lineTo(right[0], right[1]); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex);
-      ctx.font = `bold ${Math.round(w * 0.32)}px ui-monospace, monospace`;
+      ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(p.numberCode, cx, cy);
     }
@@ -221,7 +222,7 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p) {
     ctx.lineWidth = Math.max(1, R * 0.05); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex);
-      ctx.font = `bold ${Math.round(R * 0.62)}px ui-monospace, monospace`;
+      ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(p.numberCode, cx, cy);
     }
@@ -238,7 +239,7 @@ function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p) {
     ctx.lineWidth = Math.max(1, R * 0.05); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex);
-      ctx.font = `bold ${Math.round(R * 0.62)}px ui-monospace, monospace`;
+      ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(p.numberCode, cx, cy);
     }
@@ -257,7 +258,7 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p) {
   ctx.stroke();
   if (mode === "number" && p.numberCode) {
     ctx.fillStyle = numberColor(p.hex);
-    ctx.font = `bold ${Math.round(w * 0.64)}px ui-monospace, monospace`;
+    ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(p.numberCode, cx, cy);
   }
@@ -272,7 +273,7 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
     const fill = mode === "color" ? p.hex : numberFill(p);
     const stroke = exportStroke(p, mode);
     let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="0.5"/>`;
-    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, w * 0.64)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
+    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
   if (shape === "isometric") {
@@ -284,7 +285,7 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
       return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
     }
     let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
-    if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, w * 0.32)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
+    if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
   if (shape === "hexagon") {
@@ -293,14 +294,14 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
     const pts = hexPoints(cx, cy, R * 0.98).map(([x, y]) => `${x},${y}`).join(" ");
     if (mode === "color") return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
     let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
-    if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, R * 0.62)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
+    if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
   if (shape === "circle") {
     const { cx, cy, R } = circleCenter(col, row, w);
     if (mode === "color") return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
     let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
-    if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, R * 0.62)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
+    if (!skip) s += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
   // square raster
@@ -310,8 +311,7 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
     : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
   if (mode === "number" && !skip) {
     const cy = y + w / 2;
-    const fs = w * 0.42;
-    s += `<text x="${x + w / 2}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(6, fs)}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
+    s += `<text x="${x + w / 2}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
   }
   return s;
 }
@@ -487,7 +487,7 @@ export default function MosaicGenerator() {
       legend += `<g transform="translate(${lx},${ly})">
         <rect x="0" y="0" width="26" height="26" rx="6" fill="${swatchFill}" stroke="rgba(255,255,255,0.25)"/>
         <text x="13" y="14" text-anchor="middle" dominant-baseline="middle" font-size="11" font-family="monospace" font-weight="700" fill="${swatchText}">${mode === "number" ? numberLabel(p) : p.code}</text>
-        <text x="34" y="14" font-size="12" font-family="ui-sans-serif,system-ui,sans-serif" font-weight="600" fill="#FFFFFF" dominant-baseline="middle">${p.name}</text>
+        <text x="34" y="14" font-size="${LEGEND_FONT_SIZE}" font-family="ui-sans-serif,system-ui,sans-serif" font-weight="600" fill="#FFFFFF" dominant-baseline="middle">${p.name}</text>
       </g>`;
     });
 
