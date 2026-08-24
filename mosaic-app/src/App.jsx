@@ -9,7 +9,7 @@ const LINE = "#D7D2C0";
 const MUSTARD = "#C79A2B";
 const TEAL = "#2F6E6A";
 const NUMBER_BACKGROUND = "#FFFFFF";
-const NUMBER_LABEL = "#808080";
+const NUMBER_LABEL = "#AAAAAA";
 const NUMBER_EXPORT_FONT_SIZE = 9;
 const LEGEND_FONT_SIZE = 14;
 
