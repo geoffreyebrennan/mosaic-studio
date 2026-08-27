@@ -210,11 +210,9 @@ function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p) {
   if (mode === "color") {
     ctx.fillStyle = p.hex; ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(left[0], left[1]); ctx.lineTo(right[0], right[1]); ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
     ctx.lineWidth = Math.max(1, w * 0.025); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(left[0], left[1]); ctx.lineTo(right[0], right[1]); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex);
       ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
@@ -297,9 +295,9 @@ function svgCellMarkup(shape, col, row, w, mode, p) {
     const { top, right, bottom, left } = isoPoints(cx, cy, w, th);
     const pts = `${top[0]},${top[1]} ${right[0]},${right[1]} ${bottom[0]},${bottom[1]} ${left[0]},${left[1]}`;
     if (mode === "color") {
-      return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
+      return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
     }
-    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/><line x1="${left[0]}" y1="${left[1]}" x2="${right[0]}" y2="${right[1]}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
+    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
