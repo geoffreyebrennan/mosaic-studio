@@ -164,6 +164,21 @@ function gridPixelDims(shape, cols, rows, w) {
   return { gw: cols * w, gh: rows * w };
 }
 
+function rowsForAspectRatio(shape, cols, aspectRatio) {
+  const maxRows = Math.max(1, Math.ceil((cols / aspectRatio) * 2 + 10));
+  let bestRows = 1;
+  let bestDifference = Infinity;
+  for (let rows = 1; rows <= maxRows; rows++) {
+    const { gw, gh } = gridPixelDims(shape, cols, rows, 1);
+    const difference = Math.abs(gw / gh - aspectRatio);
+    if (difference < bestDifference) {
+      bestRows = rows;
+      bestDifference = difference;
+    }
+  }
+  return bestRows;
+}
+
 // ============ canvas (PNG) drawing ============
 function drawCellToCanvas(ctx, x, y, size, shape, mode, p) {
   ctx.save();
@@ -351,7 +366,7 @@ export default function MosaicGenerator() {
     setProcessing(true);
     setTimeout(() => {
       const cols = gridCols;
-      const rows = Math.max(1, Math.round(gridCols * (imgDims.h / imgDims.w)));
+      const rows = rowsForAspectRatio(shape, cols, imgDims.w / imgDims.h);
       const canvas = document.createElement("canvas");
       canvas.width = cols; canvas.height = rows;
       const ctx = canvas.getContext("2d");
@@ -375,14 +390,14 @@ export default function MosaicGenerator() {
       setSelectedCell(null);
       setProcessing(false);
     }, 20);
-  }, [gridCols, imgDims]);
+  }, [gridCols, imgDims, shape]);
 
   useEffect(() => {
     if (!imageSrc) return;
     const t = setTimeout(() => process(), 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageSrc, gridCols]);
+  }, [imageSrc, gridCols, shape]);
 
   const updateCellColor = useCallback((paletteIndex) => {
     if (selectedCell === null) return;
