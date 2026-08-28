@@ -13,7 +13,7 @@ const NUMBER_LABEL = "#AAAAAA";
 const NUMBER_EXPORT_FONT_SIZE = 9;
 const LEGEND_FONT_SIZE = 14;
 const EXPORT_SETTINGS = {
-  light: { background: "#FFFFFF", text: INK, outline: "#000000" },
+  light: { background: "#FFFFFF", text: INK, outline: "#808080" },
   dark: { background: "#000000", text: "#FFFFFF", outline: "#000000" },
 };
 
