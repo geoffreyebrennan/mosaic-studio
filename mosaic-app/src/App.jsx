@@ -65,7 +65,7 @@ function contrastText(rgb) {
   return lum > 0.6 ? "#20241F" : "#FFFFFF";
 }
 function numberColor(_hex, exportTheme = "dark") {
-  return exportTheme === "light" ? EXPORT_SETTINGS.light.text : NUMBER_LABEL;
+  return exportTheme === "light" ? "#808080" : NUMBER_LABEL;
 }
 function numberLabel(p) {
   return p.numberCode;
