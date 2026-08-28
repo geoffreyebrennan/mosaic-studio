@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Upload, Download, Loader2, Square, Circle, Hexagon, Triangle, Diamond, Orbit } from "lucide-react";
+import mosaicStudioIcon from "./mosaic-studio-icon.png";
 
 // ---------- design tokens (app chrome) ----------
 const INK = "#20241F";
@@ -623,7 +624,10 @@ export default function MosaicGenerator() {
       {/* control rail */}
       <div style={{ background: PANEL, borderRight: `1px solid ${LINE}` }} className="lg:w-72 w-full flex-shrink-0 p-5 flex flex-col gap-6">
         <div>
-          <div style={{ letterSpacing: "0.14em", fontSize: 11, color: TEAL, fontWeight: 700 }} className="uppercase mb-1">Mosaic Studio</div>
+          <div className="flex items-center gap-2 mb-1">
+            <img src={mosaicStudioIcon} alt="" width="28" height="28" className="flex-shrink-0 object-contain" />
+            <div style={{ letterSpacing: "0.14em", fontSize: 11, color: TEAL, fontWeight: 700 }} className="uppercase">Mosaic Studio</div>
+          </div>
           <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em" }}>Image → Color-by-Number</div>
         </div>
 
