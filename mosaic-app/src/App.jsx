@@ -73,6 +73,9 @@ function exportStroke(p, mode) {
   if (p.code === "1") return "#000000";
   return mode === "number" ? "rgba(128,128,128,0.5)" : "rgba(255,255,255,0.15)";
 }
+function strokeWidth(base, thickness) {
+  return base * (thickness / 2);
+}
 // "redmean" perceptual distance — better than plain Euclidean RGB for matching
 function redmean(a, b) {
   const rmean = (a[0] + b[0]) / 2;
@@ -235,16 +238,16 @@ function rowsForAspectRatio(shape, cols, aspectRatio) {
 }
 
 // ============ canvas (PNG) drawing ============
-function drawCellToCanvas(ctx, x, y, size, shape, mode, p) {
+function drawCellToCanvas(ctx, x, y, size, shape, mode, p, thickness) {
   ctx.save();
   ctx.beginPath();
   ctx.rect(x + 0.5, y + 0.5, size - 1, size - 1);
   if (mode === "color") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.stroke();
+    ctx.lineWidth = strokeWidth(0.5, thickness); ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
-    ctx.lineWidth = Math.max(1, size * 0.03); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
+    ctx.lineWidth = strokeWidth(Math.max(1, size * 0.03), thickness); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
   }
   ctx.restore();
 
@@ -256,7 +259,7 @@ function drawCellToCanvas(ctx, x, y, size, shape, mode, p) {
     ctx.fillText(p.numberCode, x + size / 2, cy + 3);
   }
 }
-function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p) {
+function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p, thickness) {
   const th = w * ISO_TRI_H;
   const { top, right, bottom, left } = isoPoints(cx, cy, w, th);
   ctx.beginPath();
@@ -264,10 +267,10 @@ function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p) {
   ctx.closePath();
   if (mode === "color") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
+    ctx.lineWidth = strokeWidth(1, thickness); ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
-    ctx.lineWidth = Math.max(1, w * 0.025); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
+    ctx.lineWidth = strokeWidth(Math.max(1, w * 0.025), thickness); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex);
       ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
@@ -276,7 +279,7 @@ function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p) {
     }
   }
 }
-function drawHexCellToCanvas(ctx, cx, cy, R, mode, p) {
+function drawHexCellToCanvas(ctx, cx, cy, R, mode, p, thickness) {
   const pts = hexPoints(cx, cy, R * 0.98);
   ctx.beginPath();
   ctx.moveTo(pts[0][0], pts[0][1]);
@@ -284,10 +287,10 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p) {
   ctx.closePath();
   if (mode === "color") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
+    ctx.lineWidth = strokeWidth(0.5, thickness); ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
-    ctx.lineWidth = Math.max(1, R * 0.05); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
+    ctx.lineWidth = strokeWidth(Math.max(1, R * 0.05), thickness); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex);
       ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
@@ -296,15 +299,15 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p) {
     }
   }
 }
-function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p) {
+function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p, thickness) {
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
   if (mode === "color") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
+    ctx.lineWidth = strokeWidth(0.5, thickness); ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
-    ctx.lineWidth = Math.max(1, R * 0.05); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
+    ctx.lineWidth = strokeWidth(Math.max(1, R * 0.05), thickness); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex);
       ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
@@ -313,7 +316,7 @@ function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p) {
     }
   }
 }
-function drawTriangleCellToCanvas(ctx, col, row, w, mode, p) {
+function drawTriangleCellToCanvas(ctx, col, row, w, mode, p, thickness) {
   const { points, cx, cy } = trianglePoints(col, row, w);
   ctx.beginPath();
   ctx.moveTo(points[0][0], points[0][1]);
@@ -321,7 +324,7 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p) {
   ctx.closePath();
   ctx.fillStyle = mode === "color" ? p.hex : numberFill(p);
   ctx.fill();
-  ctx.lineWidth = 0.5;
+  ctx.lineWidth = strokeWidth(0.5, thickness);
   ctx.strokeStyle = exportStroke(p, mode);
   ctx.stroke();
   if (mode === "number" && p.numberCode) {
@@ -333,14 +336,14 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p) {
 }
 
 // ============ SVG string (export) markup ============
-function svgCellMarkup(shape, col, row, w, mode, p, polygon) {
+function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness) {
   const skip = !p.numberCode;
   if (shape === "voronoi") {
     const pts = polygon.map(({ x, y }) => `${x * w},${y * w}`).join(" ");
     const cx = polygon.reduce((sum, point) => sum + point.x, 0) / polygon.length * w;
     const cy = polygon.reduce((sum, point) => sum + point.y, 0) / polygon.length * w;
     const fill = mode === "color" ? p.hex : numberFill(p);
-    let s = `<polygon points="${pts}" fill="${fill}" stroke="${exportStroke(p, mode)}" stroke-width="0.6"/>`;
+    let s = `<polygon points="${pts}" fill="${fill}" stroke="${exportStroke(p, mode)}" stroke-width="${strokeWidth(0.6, thickness)}"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
@@ -349,7 +352,7 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon) {
     const pts = points.map(([x, y]) => `${x},${y}`).join(" ");
     const fill = mode === "color" ? p.hex : numberFill(p);
     const stroke = exportStroke(p, mode);
-    let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="0.5"/>`;
+    let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth(0.5, thickness)}"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
@@ -359,9 +362,9 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon) {
     const { top, right, bottom, left } = isoPoints(cx, cy, w, th);
     const pts = `${top[0]},${top[1]} ${right[0]},${right[1]} ${bottom[0]},${bottom[1]} ${left[0]},${left[1]}`;
     if (mode === "color") {
-      return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
+      return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`;
     }
-    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
+    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
@@ -369,23 +372,23 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon) {
     const { cx, cy } = hexCenter(col, row, w);
     const { R } = hexLayout(w);
     const pts = hexPoints(cx, cy, R * 0.98).map(([x, y]) => `${x},${y}`).join(" ");
-    if (mode === "color") return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
-    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
+    if (mode === "color") return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`;
+    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
   if (shape === "circle") {
     const { cx, cy, R } = circleCenter(col, row, w);
-    if (mode === "color") return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`;
-    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
+    if (mode === "color") return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`;
+    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
     return s;
   }
   // square raster
   const x = col * w, y = row * w;
   let s = mode === "color"
-    ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="0.5"/>`
-    : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="0.75"/>`;
+    ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="${exportStroke(p, mode)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`
+    : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
   if (mode === "number" && !skip) {
     const cy = y + w / 2;
     s += `<text x="${x + w / 2}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex)}">${numberLabel(p)}</text>`;
@@ -400,6 +403,7 @@ export default function MosaicGenerator() {
   const [view, setView] = useState("color");
   const [shape, setShape] = useState("square");
   const [cellPx, setCellPx] = useState(14);
+  const [lineThickness, setLineThickness] = useState(2);
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState(null);
   const [selectedCell, setSelectedCell] = useState(null);
@@ -492,7 +496,7 @@ export default function MosaicGenerator() {
         polygon.forEach(({ x, y }, pointIndex) => pointIndex === 0 ? ctx.moveTo(x * scale, y * scale) : ctx.lineTo(x * scale, y * scale));
         ctx.closePath();
         ctx.fillStyle = mode === "color" ? p.hex : numberFill(p); ctx.fill();
-        ctx.lineWidth = 0.6; ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
+        ctx.lineWidth = strokeWidth(0.6, lineThickness); ctx.strokeStyle = exportStroke(p, mode); ctx.stroke();
         if (mode === "number" && p.numberCode) {
           const center = polygon.reduce((sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }), { x: 0, y: 0 });
           ctx.fillStyle = numberColor(p.hex); ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
@@ -506,7 +510,7 @@ export default function MosaicGenerator() {
       const ctx = ctx0();
       for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
         const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
-        drawTriangleCellToCanvas(ctx, x, y, scale, mode, p);
+        drawTriangleCellToCanvas(ctx, x, y, scale, mode, p, lineThickness);
       }
     } else if (shape === "isometric") {
       const th = scale * ISO_TRI_H;
@@ -516,7 +520,7 @@ export default function MosaicGenerator() {
       for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
         const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
         const { cx, cy } = isoCenter(x, y, scale);
-        drawIsoCellToCanvas(ctx, cx, cy, scale, mode, p);
+        drawIsoCellToCanvas(ctx, cx, cy, scale, mode, p, lineThickness);
       }
     } else if (shape === "hexagon") {
       const { R, height, vertSpacing } = hexLayout(scale);
@@ -526,7 +530,7 @@ export default function MosaicGenerator() {
       for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
         const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
         const { cx, cy } = hexCenter(x, y, scale);
-        drawHexCellToCanvas(ctx, cx, cy, R, mode, p);
+        drawHexCellToCanvas(ctx, cx, cy, R, mode, p, lineThickness);
       }
     } else if (shape === "circle") {
       const { R, hSpace, vSpace } = circleLayout(scale);
@@ -536,7 +540,7 @@ export default function MosaicGenerator() {
       for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
         const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
         const { cx, cy } = circleCenter(x, y, scale);
-        drawCircleCellToCanvas(ctx, cx, cy, R, mode, p);
+        drawCircleCellToCanvas(ctx, cx, cy, R, mode, p, lineThickness);
       }
     } else {
       canvas.width = result.cols * scale;
@@ -544,7 +548,7 @@ export default function MosaicGenerator() {
       const ctx = ctx0();
       for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
         const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
-        drawCellToCanvas(ctx, x * scale, y * scale, scale, shape, mode, p);
+        drawCellToCanvas(ctx, x * scale, y * scale, scale, shape, mode, p, lineThickness);
       }
     }
 
@@ -552,7 +556,7 @@ export default function MosaicGenerator() {
     const a = document.createElement("a");
     a.href = url; a.download = mode === "number" ? "mosaic-numbers.png" : "mosaic-color.png";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  }, [result, shape]);
+  }, [result, shape, lineThickness]);
 
   const downloadSvg = useCallback((mode) => {
     if (!result || (shape === "voronoi" && !result.polygons)) return;
@@ -563,7 +567,7 @@ export default function MosaicGenerator() {
     for (let y = 0; y < result.rows; y++) {
       for (let x = 0; x < result.cols; x++) {
         const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
-        cells += svgCellMarkup(shape, x, y, w, mode, p, result.polygons?.[y * result.cols + x]);
+        cells += svgCellMarkup(shape, x, y, w, mode, p, result.polygons?.[y * result.cols + x], lineThickness);
       }
     }
 
@@ -601,7 +605,7 @@ export default function MosaicGenerator() {
     a.href = url; a.download = mode === "number" ? "mosaic-numbers.svg" : "mosaic-color.svg";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [result, shape, cellPx]);
+  }, [result, shape, cellPx, lineThickness]);
 
   const showNumbers = view === "number" && cellPx >= 15;
   const inset = shape === "square" ? 0 : Math.max(1, Math.round(cellPx * 0.07));
@@ -645,6 +649,16 @@ export default function MosaicGenerator() {
                 <span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>{cellPx}px</span>
               </label>
               <input type="range" min={4} max={32} step={1} value={cellPx} onChange={(e) => setCellPx(Number(e.target.value))} />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label style={{ fontSize: 11, letterSpacing: "0.08em" }} className="uppercase font-semibold flex justify-between">
+                <span>Line thickness</span>
+                <span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>
+                  {lineThickness === 1 ? "Light" : lineThickness === 2 ? "Regular" : "Bold"}
+                </span>
+              </label>
+              <input aria-label="Line thickness" type="range" min={1} max={3} step={1} value={lineThickness} onChange={(e) => setLineThickness(Number(e.target.value))} />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -774,7 +788,7 @@ export default function MosaicGenerator() {
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
                           <polygon points={points} fill={view === "color" ? p.hex : numberFill(p)}
                             stroke={selected ? MUSTARD : view === "color" ? "rgba(255,255,255,0.22)" : "rgba(128,128,128,0.6)"}
-                            strokeWidth={selected ? 2 : 0.6} />
+                            strokeWidth={selected ? 2 : strokeWidth(0.6, lineThickness)} />
                           {showNum && p.numberCode && <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                             fontSize={Math.max(6, cellPx * 0.42)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>{p.numberCode}</text>}
                         </g>
@@ -800,7 +814,7 @@ export default function MosaicGenerator() {
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
                           <polygon points={poly} fill={view === "color" ? p.hex : numberFill(p)}
                             stroke={selected ? MUSTARD : view === "color" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)"}
-                            strokeWidth={selected ? 2 : 0.5} />
+                            strokeWidth={selected ? 2 : strokeWidth(0.5, lineThickness)} />
                           {showNum && p.numberCode && (
                             <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                               fontSize={Math.max(6, cellPx * 0.64)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>
@@ -829,15 +843,15 @@ export default function MosaicGenerator() {
                       if (view === "color") {
                         return (
                           <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined }}>
-                            <polygon points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : 0.5} />
-                            <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke="rgba(255,255,255,0.15)" strokeWidth={0.5} />
+                            <polygon points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.5, lineThickness)} />
+                            <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke="rgba(255,255,255,0.15)" strokeWidth={strokeWidth(0.5, lineThickness)} />
                           </g>
                         );
                       }
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined }}>
-                          <polygon points={poly} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : 0.75} />
-                          <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke="rgba(255,255,255,0.4)" strokeWidth={0.75} />
+                          <polygon points={poly} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
+                          <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke="rgba(255,255,255,0.4)" strokeWidth={strokeWidth(0.75, lineThickness)} />
                           {showNum && p.numberCode && (
                             <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                               fontSize={Math.max(6, w * 0.32)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>
@@ -864,10 +878,10 @@ export default function MosaicGenerator() {
                       const { cx, cy } = hexCenter(col, row, cellPx);
                       const pts = hexPoints(cx, cy, R * 0.98);
                       const poly = pts.map(([x, y]) => `${x},${y}`).join(" ");
-                      if (view === "color") return <polygon key={i} points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : 0.5} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
+                      if (view === "color") return <polygon key={i} points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
-                          <polygon points={poly} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : 0.75} />
+                          <polygon points={poly} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
                           {showNum && p.numberCode && (
                             <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                               fontSize={Math.max(6, R * 0.62)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>
@@ -892,10 +906,10 @@ export default function MosaicGenerator() {
                       const p = FIXED_PALETTE[idx];
                       const col = i % result.cols, row = (i - col) / result.cols;
                       const { cx, cy } = circleCenter(col, row, cellPx);
-                      if (view === "color") return <circle key={i} cx={cx} cy={cy} r={R} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : 0.5} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
+                      if (view === "color") return <circle key={i} cx={cx} cy={cy} r={R} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
-                          <circle cx={cx} cy={cy} r={R} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : 0.75} />
+                          <circle cx={cx} cy={cy} r={R} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
                           {showNum && p.numberCode && (
                             <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                               fontSize={Math.max(6, R * 0.62)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>
@@ -917,7 +931,7 @@ export default function MosaicGenerator() {
                     if (view === "color") {
                       return (
                         <div key={i} onClick={() => setSelectedCell(i)} style={{ width: cellPx, height: cellPx, cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined, outlineOffset: -2 }} className="flex items-center justify-center">
-                          <div style={{ ...inner, background: p.hex, outline: cellPx > 8 ? "0.5px solid rgba(255,255,255,0.10)" : "none" }} />
+                          <div style={{ ...inner, background: p.hex, outline: cellPx > 8 ? `${strokeWidth(0.5, lineThickness)}px solid rgba(255,255,255,0.10)` : "none" }} />
                         </div>
                       );
                     }
@@ -925,7 +939,7 @@ export default function MosaicGenerator() {
                       <div key={i} onClick={() => setSelectedCell(i)} style={{ width: cellPx, height: cellPx, cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined, outlineOffset: -2 }} className="flex items-center justify-center">
                         <div style={{
                           ...inner, background: numberFill(p),
-                          border: "0.5px solid rgba(128,128,128,0.5)",
+                          border: `${strokeWidth(0.5, lineThickness)}px solid rgba(128,128,128,0.5)`,
                           display: "flex", alignItems: "center", justifyContent: "center",
                           fontSize: Math.max(6, innerSize * (shape === "triangle" ? 0.32 : 0.42)),
                           fontFamily: "ui-monospace, monospace", fontWeight: 700,
