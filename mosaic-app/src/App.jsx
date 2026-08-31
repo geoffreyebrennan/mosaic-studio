@@ -241,6 +241,119 @@ function rowsForAspectRatio(shape, cols, aspectRatio) {
   return bestRows;
 }
 
+// ============ connected components for colouring-book merging ============
+function getNeighbors(col, row, cols, rows, shape) {
+  const neighbors = [];
+  if (shape === "square" || shape === "isometric") {
+    const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    for (const [dc, dr] of dirs) {
+      const nc = col + dc, nr = row + dr;
+      if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
+    }
+  } else if (shape === "hexagon") {
+    if (col % 2 === 0) {
+      const dirs = [[-1, -1], [0, -1], [1, 0], [0, 1], [-1, 0], [-1, -1]];
+      for (let i = 0; i < 6; i++) {
+        const nc = col + dirs[i][0], nr = row + dirs[i][1];
+        if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
+      }
+    } else {
+      const dirs = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 0]];
+      for (let i = 0; i < 6; i++) {
+        const nc = col + dirs[i][0], nr = row + dirs[i][1];
+        if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
+      }
+    }
+  } else if (shape === "circle") {
+    const { R, hSpace, vSpace } = circleLayout(1);
+    const dirs = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 0]];
+    for (const [dc, dr] of dirs) {
+      const nc = col + dc, nr = row + dr;
+      if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
+    }
+  } else if (shape === "triangle") {
+    if ((col + row) % 2 === 0) {
+      const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+      for (const [dc, dr] of dirs) {
+        const nc = col + dc, nr = row + dr;
+        if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
+      }
+    } else {
+      const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+      for (const [dc, dr] of dirs) {
+        const nc = col + dc, nr = row + dr;
+        if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
+      }
+    }
+  }
+  return neighbors;
+}
+
+function findConnectedComponents(cols, rows, assignments, shape) {
+  const visited = new Set();
+  const components = [];
+  for (let i = 0; i < cols * rows; i++) {
+    if (visited.has(i)) continue;
+    const col = i % cols, row = Math.floor(i / cols);
+    const colorIdx = assignments[i];
+    const component = [];
+    const queue = [[col, row]];
+    while (queue.length > 0) {
+      const [c, r] = queue.shift();
+      const idx = r * cols + c;
+      if (visited.has(idx)) continue;
+      if (assignments[idx] !== colorIdx) continue;
+      visited.add(idx);
+      component.push(idx);
+      const neighbors = getNeighbors(c, r, cols, rows, shape);
+      for (const [nc, nr] of neighbors) {
+        const nidx = nr * cols + nc;
+        if (!visited.has(nidx) && assignments[nidx] === colorIdx) {
+          queue.push([nc, nr]);
+        }
+      }
+    }
+    if (component.length > 0) components.push({ colorIdx, cells: component });
+  }
+  return components;
+}
+
+function generateMergedPolygon(component, cols, rows, shape, w) {
+  const cellSet = new Set(component.cells);
+  const allPoints = [];
+  
+  // Collect all boundary points from cells in this component
+  for (const cellIdx of component.cells) {
+    const col = cellIdx % cols, row = Math.floor(cellIdx / cols);
+    
+    if (shape === "square") {
+      const x = col * w, y = row * w;
+      allPoints.push({ x, y, type: "square", col, row });
+    } else if (shape === "hexagon") {
+      const { cx, cy } = hexCenter(col, row, w);
+      const R = w / 2;
+      allPoints.push({ cx, cy, R, type: "hexagon", col, row });
+    } else if (shape === "circle") {
+      const { cx, cy, R } = circleCenter(col, row, w);
+      allPoints.push({ cx, cy, R, type: "circle", col, row });
+    } else if (shape === "isometric") {
+      const th = w * ISO_TRI_H;
+      const { cx, cy } = isoCenter(col, row, w);
+      allPoints.push({ cx, cy, th, w, type: "isometric", col, row });
+    } else if (shape === "triangle") {
+      const { points, cx, cy } = trianglePoints(col, row, w);
+      allPoints.push({ points, cx, cy, type: "triangle", col, row });
+    }
+  }
+  
+  return allPoints;
+}
+
+function shouldDrawBorder(col, row, ncol, nrow, cols, rows, assignments) {
+  if (ncol < 0 || ncol >= cols || nrow < 0 || nrow >= rows) return true;
+  return assignments[row * cols + col] !== assignments[nrow * cols + ncol];
+}
+
 // ============ canvas (PNG) drawing ============
 function drawCellToCanvas(ctx, x, y, size, shape, mode, p, thickness, exportTheme) {
   ctx.save();
@@ -344,7 +457,7 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p, thickness, exportTh
 }
 
 // ============ SVG string (export) markup ============
-function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTheme) {
+function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTheme, cols, rows, assignments) {
   const skip = !p.numberCode;
   if (shape === "voronoi") {
     const pts = polygon.map(({ x, y }) => `${x * w},${y * w}`).join(" ");
@@ -361,8 +474,18 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTh
     const { points, cx, cy } = trianglePoints(col, row, w);
     const pts = points.map(([x, y]) => `${x},${y}`).join(" ");
     const fill = mode === "color" || mode === "colouring-book" ? p.hex : numberFill(p);
-    const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
-    const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
+    const idx = row * cols + col;
+    const colorIdx = assignments[idx];
+    let stroke = exportStroke(p, mode, exportTheme);
+    let sw = strokeWidth(0.5, thickness);
+    if (mode === "colouring-book") {
+      const hasNeighborWithDifferentColor = getNeighbors(col, row, cols, rows, "triangle").some(([nc, nr]) => {
+        const nidx = nr * cols + nc;
+        return assignments[nidx] !== colorIdx;
+      });
+      stroke = hasNeighborWithDifferentColor ? "#000" : "none";
+      sw = hasNeighborWithDifferentColor ? strokeWidth(1.5, thickness) : "0";
+    }
     let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
@@ -372,40 +495,61 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTh
     const { cx, cy } = isoCenter(col, row, w);
     const { top, right, bottom, left } = isoPoints(cx, cy, w, th);
     const pts = `${top[0]},${top[1]} ${right[0]},${right[1]} ${bottom[0]},${bottom[1]} ${left[0]},${left[1]}`;
-    if (mode === "color" || mode === "colouring-book") {
-      const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
-      const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-      return `<polygon points="${pts}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    const idx = row * cols + col;
+    const colorIdx = assignments[idx];
+    let stroke = exportStroke(p, mode, exportTheme);
+    let sw = strokeWidth(0.5, thickness);
+    if (mode === "colouring-book") {
+      const hasNeighborWithDifferentColor = getNeighbors(col, row, cols, rows, "isometric").some(([nc, nr]) => {
+        const nidx = nr * cols + nc;
+        return assignments[nidx] !== colorIdx;
+      });
+      stroke = hasNeighborWithDifferentColor ? "#000" : "none";
+      sw = hasNeighborWithDifferentColor ? strokeWidth(1.5, thickness) : "0";
     }
-    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
-    if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
+    let s = `<polygon points="${pts}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
   if (shape === "hexagon") {
     const { cx, cy } = hexCenter(col, row, w);
     const { R } = hexLayout(w);
     const pts = hexPoints(cx, cy, R * 0.98).map(([x, y]) => `${x},${y}`).join(" ");
-    if (mode === "color" || mode === "colouring-book") {
-      const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
-      const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-      return `<polygon points="${pts}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    const idx = row * cols + col;
+    const colorIdx = assignments[idx];
+    let stroke = exportStroke(p, mode, exportTheme);
+    let sw = strokeWidth(0.5, thickness);
+    if (mode === "colouring-book") {
+      const hasNeighborWithDifferentColor = getNeighbors(col, row, cols, rows, "hexagon").some(([nc, nr]) => {
+        const nidx = nr * cols + nc;
+        return assignments[nidx] !== colorIdx;
+      });
+      stroke = hasNeighborWithDifferentColor ? "#000" : "none";
+      sw = hasNeighborWithDifferentColor ? strokeWidth(1.5, thickness) : "0";
     }
-    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
-    if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
+    let s = `<polygon points="${pts}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
   if (shape === "circle") {
     const { cx, cy, R } = circleCenter(col, row, w);
-    if (mode === "color" || mode === "colouring-book") {
-      const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
-      const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-      return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    const idx = row * cols + col;
+    const colorIdx = assignments[idx];
+    let stroke = exportStroke(p, mode, exportTheme);
+    let sw = strokeWidth(0.5, thickness);
+    if (mode === "colouring-book") {
+      const hasNeighborWithDifferentColor = getNeighbors(col, row, cols, rows, "circle").some(([nc, nr]) => {
+        const nidx = nr * cols + nc;
+        return assignments[nidx] !== colorIdx;
+      });
+      stroke = hasNeighborWithDifferentColor ? "#000" : "none";
+      sw = hasNeighborWithDifferentColor ? strokeWidth(1.5, thickness) : "0";
     }
-    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
-    if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
+    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
-  // square raster
+  // square raster - should not reach here since handlecoped specially
   const x = col * w, y = row * w;
   const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
   const colourStroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
@@ -577,9 +721,36 @@ export default function MosaicGenerator() {
       canvas.width = result.cols * scale;
       canvas.height = result.rows * scale;
       const ctx = ctx0();
-      for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
-        const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
-        drawCellToCanvas(ctx, x * scale, y * scale, scale, shape, mode, p, lineThickness, exportTheme);
+      
+      if (mode === "colouring-book") {
+        // For colouring-book, first fill all cells
+        for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
+          const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
+          ctx.fillStyle = p.hex;
+          ctx.fillRect(x * scale, y * scale, scale, scale);
+        }
+        // Then draw borders only between different colors
+        for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
+          const idx = y * result.cols + x;
+          const color = result.assignments[idx];
+          const drawTop = y === 0 || result.assignments[(y-1) * result.cols + x] !== color;
+          const drawRight = x === result.cols - 1 || result.assignments[y * result.cols + (x+1)] !== color;
+          const drawBottom = y === result.rows - 1 || result.assignments[(y+1) * result.cols + x] !== color;
+          const drawLeft = x === 0 || result.assignments[y * result.cols + (x-1)] !== color;
+          
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = strokeWidth(1.5, lineThickness);
+          
+          if (drawTop) { ctx.beginPath(); ctx.moveTo(x * scale, y * scale); ctx.lineTo((x+1) * scale, y * scale); ctx.stroke(); }
+          if (drawRight) { ctx.beginPath(); ctx.moveTo((x+1) * scale, y * scale); ctx.lineTo((x+1) * scale, (y+1) * scale); ctx.stroke(); }
+          if (drawBottom) { ctx.beginPath(); ctx.moveTo(x * scale, (y+1) * scale); ctx.lineTo((x+1) * scale, (y+1) * scale); ctx.stroke(); }
+          if (drawLeft) { ctx.beginPath(); ctx.moveTo(x * scale, y * scale); ctx.lineTo(x * scale, (y+1) * scale); ctx.stroke(); }
+        }
+      } else {
+        for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
+          const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
+          drawCellToCanvas(ctx, x * scale, y * scale, scale, shape, mode, p, lineThickness, exportTheme);
+        }
       }
     }
 
@@ -596,10 +767,40 @@ export default function MosaicGenerator() {
     const { gw, gh } = gridPixelDims(shape, result.cols, result.rows, w);
 
     let cells = "";
-    for (let y = 0; y < result.rows; y++) {
-      for (let x = 0; x < result.cols; x++) {
-        const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
-        cells += svgCellMarkup(shape, x, y, w, mode, p, result.polygons?.[y * result.cols + x], lineThickness, exportTheme);
+    if (mode === "colouring-book" && shape === "square") {
+      // For colouring-book square grids, only draw borders between different colors
+      for (let y = 0; y < result.rows; y++) {
+        for (let x = 0; x < result.cols; x++) {
+          const idx = y * result.cols + x;
+          const p = FIXED_PALETTE[result.assignments[idx]];
+          const x0 = x * w, y0 = y * w;
+          cells += `<rect x="${x0 + 0.5}" y="${y0 + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="none"/>`;
+        }
+      }
+      // Draw borders only between different colors
+      for (let y = 0; y < result.rows; y++) {
+        for (let x = 0; x < result.cols; x++) {
+          const idx = y * result.cols + x;
+          const color = result.assignments[idx];
+          const x0 = x * w, y0 = y * w;
+          const sw = strokeWidth(1.5, lineThickness);
+          const drawTop = y === 0 || result.assignments[(y-1) * result.cols + x] !== color;
+          const drawRight = x === result.cols - 1 || result.assignments[y * result.cols + (x+1)] !== color;
+          const drawBottom = y === result.rows - 1 || result.assignments[(y+1) * result.cols + x] !== color;
+          const drawLeft = x === 0 || result.assignments[y * result.cols + (x-1)] !== color;
+          
+          if (drawTop) cells += `<line x1="${x0}" y1="${y0}" x2="${x0 + w}" y2="${y0}" stroke="#000" stroke-width="${sw}"/>`;
+          if (drawRight) cells += `<line x1="${x0 + w}" y1="${y0}" x2="${x0 + w}" y2="${y0 + w}" stroke="#000" stroke-width="${sw}"/>`;
+          if (drawBottom) cells += `<line x1="${x0}" y1="${y0 + w}" x2="${x0 + w}" y2="${y0 + w}" stroke="#000" stroke-width="${sw}"/>`;
+          if (drawLeft) cells += `<line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0 + w}" stroke="#000" stroke-width="${sw}"/>`;
+        }
+      }
+    } else {
+      for (let y = 0; y < result.rows; y++) {
+        for (let x = 0; x < result.cols; x++) {
+          const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
+          cells += svgCellMarkup(shape, x, y, w, mode, p, result.polygons?.[y * result.cols + x], lineThickness, exportTheme, result.cols, result.rows, result.assignments);
+        }
       }
     }
 
@@ -833,6 +1034,34 @@ export default function MosaicGenerator() {
               {result && shape === "voronoi" && result.polygons && (() => {
                 const svgW = result.cols * cellPx, svgH = result.rows * cellPx;
                 const showNum = view === "number" && cellPx >= 10;
+                
+                // For voronoi colouring-book, check each polygon's edges against neighbors
+                const findVoronoiNeighbors = (polyIdx) => {
+                  if (view !== "colouring-book") return [];
+                  const neighbors = [];
+                  const poly = result.polygons[polyIdx];
+                  const color = result.assignments[polyIdx];
+                  
+                  // Find voronoi cells that share edges/vertices with this one
+                  for (let i = 0; i < result.polygons.length; i++) {
+                    if (i === polyIdx || result.assignments[i] === color) continue;
+                    const otherPoly = result.polygons[i];
+                    // Simple heuristic: check if polygons are close (for now, assume direct neighbors)
+                    let sharesVertex = false;
+                    for (const { x, y } of poly) {
+                      for (const { x: ox, y: oy } of otherPoly) {
+                        if (Math.abs(x - ox) < 0.01 && Math.abs(y - oy) < 0.01) {
+                          sharesVertex = true;
+                          break;
+                        }
+                      }
+                      if (sharesVertex) break;
+                    }
+                    if (sharesVertex) neighbors.push(i);
+                  }
+                  return neighbors;
+                };
+                
                 return (
                   <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ background: "#000", display: "block" }}>
                     {result.polygons.map((polygon, i) => {
@@ -841,11 +1070,23 @@ export default function MosaicGenerator() {
                       const center = polygon.reduce((sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }), { x: 0, y: 0 });
                       const cx = center.x / polygon.length * cellPx, cy = center.y / polygon.length * cellPx;
                       const selected = selectedCell === i;
+                      
+                      if (view === "colouring-book") {
+                        const differentNeighbors = findVoronoiNeighbors(i);
+                        return (
+                          <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
+                            <polygon points={points} fill={p.hex}
+                              stroke={selected ? MUSTARD : differentNeighbors.length > 0 ? "#000" : "none"}
+                              strokeWidth={selected ? 2 : differentNeighbors.length > 0 ? strokeWidth(1.5, lineThickness) : 0} />
+                          </g>
+                        );
+                      }
+                      
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
-                          <polygon points={points} fill={view === "color" || view === "colouring-book" ? p.hex : numberFill(p)}
-                            stroke={selected ? MUSTARD : view === "color" || view === "colouring-book" ? (view === "colouring-book" ? "#000" : "rgba(255,255,255,0.22)") : "rgba(128,128,128,0.6)"}
-                            strokeWidth={selected ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.6, lineThickness)} />
+                          <polygon points={points} fill={view === "color" ? p.hex : numberFill(p)}
+                            stroke={selected ? MUSTARD : view === "color" ? "rgba(255,255,255,0.22)" : "rgba(128,128,128,0.6)"}
+                            strokeWidth={selected ? 2 : strokeWidth(0.6, lineThickness)} />
                           {showNum && p.numberCode && view !== "colouring-book" && <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                             fontSize={Math.max(6, cellPx * 0.42)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>{p.numberCode}</text>}
                         </g>
@@ -867,12 +1108,27 @@ export default function MosaicGenerator() {
                       const { points, cx, cy } = trianglePoints(col, row, cellPx);
                       const poly = points.map(([x, y]) => `${x},${y}`).join(" ");
                       const selected = selectedCell === i;
+                      
+                      if (view === "colouring-book") {
+                        const hasNeighborWithDifferentColor = getNeighbors(col, row, result.cols, result.rows, "triangle").some(([nc, nr]) => {
+                          const nidx = nr * result.cols + nc;
+                          return result.assignments[nidx] !== idx;
+                        });
+                        return (
+                          <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
+                            <polygon points={poly} fill={p.hex}
+                              stroke={selected ? MUSTARD : hasNeighborWithDifferentColor ? "#000" : "none"}
+                              strokeWidth={selected ? 2 : hasNeighborWithDifferentColor ? strokeWidth(1.5, lineThickness) : 0} />
+                          </g>
+                        );
+                      }
+                      
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
-                          <polygon points={poly} fill={view === "color" || view === "colouring-book" ? p.hex : numberFill(p)}
-                            stroke={selected ? MUSTARD : view === "color" || view === "colouring-book" ? (view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)") : "rgba(255,255,255,0.4)"}
-                            strokeWidth={selected ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} />
-                          {showNum && p.numberCode && view !== "colouring-book" && (
+                          <polygon points={poly} fill={view === "color" ? p.hex : numberFill(p)}
+                            stroke={selected ? MUSTARD : view === "color" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)"}
+                            strokeWidth={selected ? 2 : strokeWidth(0.5, lineThickness)} />
+                          {showNum && p.numberCode && (
                             <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                               fontSize={Math.max(6, cellPx * 0.64)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>
                               {p.numberCode}
@@ -897,24 +1153,22 @@ export default function MosaicGenerator() {
                       const { cx, cy } = isoCenter(col, row, w);
                       const { top, right, bottom, left } = isoPoints(cx, cy, w, th);
                       const poly = `${top[0]},${top[1]} ${right[0]},${right[1]} ${bottom[0]},${bottom[1]} ${left[0]},${left[1]}`;
-                      if (view === "color" || view === "colouring-book") {
+                      if (view === "colouring-book") {
+                        const hasNeighborWithDifferentColor = getNeighbors(col, row, result.cols, result.rows, "isometric").some(([nc, nr]) => {
+                          const nidx = nr * result.cols + nc;
+                          return result.assignments[nidx] !== idx;
+                        });
                         return (
                           <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined }}>
-                            <polygon points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} />
-                            <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke={view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} />
+                            <polygon points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : hasNeighborWithDifferentColor ? "#000" : "none"} strokeWidth={selectedCell === i ? 2 : hasNeighborWithDifferentColor ? strokeWidth(1.5, lineThickness) : 0} />
+                            {hasNeighborWithDifferentColor && <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke="#000" strokeWidth={strokeWidth(1.5, lineThickness)} />}
                           </g>
                         );
                       }
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined }}>
-                          <polygon points={poly} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
-                          <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke="rgba(255,255,255,0.4)" strokeWidth={strokeWidth(0.75, lineThickness)} />
-                          {showNum && p.numberCode && (
-                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-                              fontSize={Math.max(6, w * 0.32)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>
-                              {p.numberCode}
-                            </text>
-                          )}
+                          <polygon points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.5, lineThickness)} />
+                          <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke="rgba(255,255,255,0.15)" strokeWidth={strokeWidth(0.5, lineThickness)} />
                         </g>
                       );
                     })}
@@ -935,7 +1189,14 @@ export default function MosaicGenerator() {
                       const { cx, cy } = hexCenter(col, row, cellPx);
                       const pts = hexPoints(cx, cy, R * 0.98);
                       const poly = pts.map(([x, y]) => `${x},${y}`).join(" ");
-                      if (view === "color" || view === "colouring-book") return <polygon key={i} points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
+                      if (view === "colouring-book") {
+                        const hasNeighborWithDifferentColor = getNeighbors(col, row, result.cols, result.rows, "hexagon").some(([nc, nr]) => {
+                          const nidx = nr * result.cols + nc;
+                          return result.assignments[nidx] !== idx;
+                        });
+                        return <polygon key={i} points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : hasNeighborWithDifferentColor ? "#000" : "none"} strokeWidth={selectedCell === i ? 2 : hasNeighborWithDifferentColor ? strokeWidth(1.5, lineThickness) : 0} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
+                      }
+                      if (view === "color") return <polygon key={i} points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
                           <polygon points={poly} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
@@ -963,7 +1224,14 @@ export default function MosaicGenerator() {
                       const p = FIXED_PALETTE[idx];
                       const col = i % result.cols, row = (i - col) / result.cols;
                       const { cx, cy } = circleCenter(col, row, cellPx);
-                      if (view === "color" || view === "colouring-book") return <circle key={i} cx={cx} cy={cy} r={R} fill={p.hex} stroke={selectedCell === i ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
+                      if (view === "colouring-book") {
+                        const hasNeighborWithDifferentColor = getNeighbors(col, row, result.cols, result.rows, "circle").some(([nc, nr]) => {
+                          const nidx = nr * result.cols + nc;
+                          return result.assignments[nidx] !== idx;
+                        });
+                        return <circle key={i} cx={cx} cy={cy} r={R} fill={p.hex} stroke={selectedCell === i ? MUSTARD : hasNeighborWithDifferentColor ? "#000" : "none"} strokeWidth={selectedCell === i ? 2 : hasNeighborWithDifferentColor ? strokeWidth(1.5, lineThickness) : 0} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
+                      }
+                      if (view === "color") return <circle key={i} cx={cx} cy={cy} r={R} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
                           <circle cx={cx} cy={cy} r={R} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
@@ -980,15 +1248,15 @@ export default function MosaicGenerator() {
                 );
               })()}
 
-              {result && !isLattice && (
+              {result && !isLattice && view !== "colouring-book" && (
                 <div style={{ display: "grid", gridTemplateColumns: `repeat(${result.cols}, ${cellPx}px)`, background: "#000" }}>
                   {result.assignments.map((idx, i) => {
                     const p = FIXED_PALETTE[idx];
                     const inner = { width: innerSize, height: innerSize, ...shapeStyle(shape) };
-                    if (view === "color" || view === "colouring-book") {
+                    if (view === "color") {
                       return (
                         <div key={i} onClick={() => setSelectedCell(i)} style={{ width: cellPx, height: cellPx, cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined, outlineOffset: -2 }} className="flex items-center justify-center">
-                          <div style={{ ...inner, background: p.hex, outline: cellPx > 8 ? `${strokeWidth(view === "colouring-book" ? 1.5 : 0.5, lineThickness)}px solid ${view === "colouring-book" ? "#000" : "rgba(255,255,255,0.10)"}` : "none" }} />
+                          <div style={{ ...inner, background: p.hex, outline: cellPx > 8 ? `${strokeWidth(0.5, lineThickness)}px solid rgba(255,255,255,0.10)` : "none" }} />
                         </div>
                       );
                     }
@@ -1011,6 +1279,37 @@ export default function MosaicGenerator() {
                   })}
                 </div>
               )}
+
+              {result && !isLattice && view === "colouring-book" && (() => {
+                const svgW = result.cols * cellPx, svgH = result.rows * cellPx;
+                return (
+                  <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ background: "#000", display: "block" }}>
+                    {result.assignments.map((idx, i) => {
+                      const p = FIXED_PALETTE[idx];
+                      const col = i % result.cols, row = Math.floor(i / result.cols);
+                      const x = col * cellPx, y = row * cellPx;
+                      const selected = selectedCell === i;
+                      
+                      // Determine which borders to draw (only on edges to different colors)
+                      const drawTop = row === 0 || shouldDrawBorder(col, row, col, row - 1, result.cols, result.rows, result.assignments);
+                      const drawRight = col === result.cols - 1 || shouldDrawBorder(col, row, col + 1, row, result.cols, result.rows, result.assignments);
+                      const drawBottom = row === result.rows - 1 || shouldDrawBorder(col, row, col, row + 1, result.cols, result.rows, result.assignments);
+                      const drawLeft = col === 0 || shouldDrawBorder(col, row, col - 1, row, result.cols, result.rows, result.assignments);
+                      
+                      return (
+                        <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
+                          <rect x={x + 0.5} y={y + 0.5} width={cellPx - 1} height={cellPx - 1} fill={p.hex} stroke="none" />
+                          {drawTop && <line x1={x} y1={y} x2={x + cellPx} y2={y} stroke="#000" strokeWidth={strokeWidth(1.5, lineThickness)} />}
+                          {drawRight && <line x1={x + cellPx} y1={y} x2={x + cellPx} y2={y + cellPx} stroke="#000" strokeWidth={strokeWidth(1.5, lineThickness)} />}
+                          {drawBottom && <line x1={x} y1={y + cellPx} x2={x + cellPx} y2={y + cellPx} stroke="#000" strokeWidth={strokeWidth(1.5, lineThickness)} />}
+                          {drawLeft && <line x1={x} y1={y} x2={x} y2={y + cellPx} stroke="#000" strokeWidth={strokeWidth(1.5, lineThickness)} />}
+                          {selected && <rect x={x + 0.5} y={y + 0.5} width={cellPx - 1} height={cellPx - 1} fill="none" stroke={MUSTARD} strokeWidth={2} />}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                );
+              })()}
             </div>
           </div>
         )}
