@@ -241,117 +241,95 @@ function rowsForAspectRatio(shape, cols, aspectRatio) {
   return bestRows;
 }
 
-// ============ connected components for colouring-book merging ============
-function getNeighbors(col, row, cols, rows, shape) {
-  const neighbors = [];
-  if (shape === "square" || shape === "isometric") {
-    const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-    for (const [dc, dr] of dirs) {
-      const nc = col + dc, nr = row + dr;
-      if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
-    }
-  } else if (shape === "hexagon") {
-    if (col % 2 === 0) {
-      const dirs = [[-1, -1], [0, -1], [1, 0], [0, 1], [-1, 0], [-1, -1]];
-      for (let i = 0; i < 6; i++) {
-        const nc = col + dirs[i][0], nr = row + dirs[i][1];
-        if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
-      }
-    } else {
-      const dirs = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 0]];
-      for (let i = 0; i < 6; i++) {
-        const nc = col + dirs[i][0], nr = row + dirs[i][1];
-        if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
-      }
-    }
-  } else if (shape === "circle") {
-    const { R, hSpace, vSpace } = circleLayout(1);
-    const dirs = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 0]];
-    for (const [dc, dr] of dirs) {
-      const nc = col + dc, nr = row + dr;
-      if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
-    }
-  } else if (shape === "triangle") {
-    if ((col + row) % 2 === 0) {
-      const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-      for (const [dc, dr] of dirs) {
-        const nc = col + dc, nr = row + dr;
-        if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
-      }
-    } else {
-      const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-      for (const [dc, dr] of dirs) {
-        const nc = col + dc, nr = row + dr;
-        if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) neighbors.push([nc, nr]);
-      }
+// ============ coloring book mode: edge detection (Sobel), no AI ============
+// separable box blur — O(w*h) regardless of radius, used to denoise before Sobel
+function boxBlur(src, w, h, radius) {
+  if (radius <= 0) return src;
+  const tmp = new Float32Array(w * h);
+  const dst = new Float32Array(w * h);
+  const size = radius * 2 + 1;
+  for (let y = 0; y < h; y++) {
+    let sum = 0;
+    for (let x = -radius; x <= radius; x++) sum += src[y * w + Math.min(w - 1, Math.max(0, x))];
+    for (let x = 0; x < w; x++) {
+      tmp[y * w + x] = sum / size;
+      const xOut = Math.min(w - 1, Math.max(0, x - radius));
+      const xIn = Math.min(w - 1, Math.max(0, x + radius + 1));
+      sum += src[y * w + xIn] - src[y * w + xOut];
     }
   }
-  return neighbors;
+  for (let x = 0; x < w; x++) {
+    let sum = 0;
+    for (let y = -radius; y <= radius; y++) sum += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (let y = 0; y < h; y++) {
+      dst[y * w + x] = sum / size;
+      const yOut = Math.min(h - 1, Math.max(0, y - radius));
+      const yIn = Math.min(h - 1, Math.max(0, y + radius + 1));
+      sum += tmp[yIn * w + x] - tmp[yOut * w + x];
+    }
+  }
+  return dst;
 }
 
-function findConnectedComponents(cols, rows, assignments, shape) {
-  const visited = new Set();
-  const components = [];
-  for (let i = 0; i < cols * rows; i++) {
-    if (visited.has(i)) continue;
-    const col = i % cols, row = Math.floor(i / cols);
-    const colorIdx = assignments[i];
-    const component = [];
-    const queue = [[col, row]];
-    while (queue.length > 0) {
-      const [c, r] = queue.shift();
-      const idx = r * cols + c;
-      if (visited.has(idx)) continue;
-      if (assignments[idx] !== colorIdx) continue;
-      visited.add(idx);
-      component.push(idx);
-      const neighbors = getNeighbors(c, r, cols, rows, shape);
-      for (const [nc, nr] of neighbors) {
-        const nidx = nr * cols + nc;
-        if (!visited.has(nidx) && assignments[nidx] === colorIdx) {
-          queue.push([nc, nr]);
+const SOBEL_GX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+const SOBEL_GY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+function detectEdges(img, maxDim, threshold, blurRadius, thickness) {
+  const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * scale));
+  const h = Math.max(1, Math.round(img.naturalHeight * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h).data;
+
+  const gray = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+  }
+  const smoothed = boxBlur(gray, w, h, blurRadius);
+
+  let edge = new Uint8Array(w * h);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      let gx = 0, gy = 0, k = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const v = smoothed[(y + dy) * w + (x + dx)];
+          gx += v * SOBEL_GX[k]; gy += v * SOBEL_GY[k]; k++;
         }
       }
-    }
-    if (component.length > 0) components.push({ colorIdx, cells: component });
-  }
-  return components;
-}
-
-function generateMergedPolygon(component, cols, rows, shape, w) {
-  const cellSet = new Set(component.cells);
-  const allPoints = [];
-  
-  // Collect all boundary points from cells in this component
-  for (const cellIdx of component.cells) {
-    const col = cellIdx % cols, row = Math.floor(cellIdx / cols);
-    
-    if (shape === "square") {
-      const x = col * w, y = row * w;
-      allPoints.push({ x, y, type: "square", col, row });
-    } else if (shape === "hexagon") {
-      const { cx, cy } = hexCenter(col, row, w);
-      const R = w / 2;
-      allPoints.push({ cx, cy, R, type: "hexagon", col, row });
-    } else if (shape === "circle") {
-      const { cx, cy, R } = circleCenter(col, row, w);
-      allPoints.push({ cx, cy, R, type: "circle", col, row });
-    } else if (shape === "isometric") {
-      const th = w * ISO_TRI_H;
-      const { cx, cy } = isoCenter(col, row, w);
-      allPoints.push({ cx, cy, th, w, type: "isometric", col, row });
-    } else if (shape === "triangle") {
-      const { points, cx, cy } = trianglePoints(col, row, w);
-      allPoints.push({ points, cx, cy, type: "triangle", col, row });
+      edge[y * w + x] = Math.sqrt(gx * gx + gy * gy) > threshold ? 1 : 0;
     }
   }
-  
-  return allPoints;
-}
 
-function shouldDrawBorder(col, row, ncol, nrow, cols, rows, assignments) {
-  if (ncol < 0 || ncol >= cols || nrow < 0 || nrow >= rows) return true;
-  return assignments[row * cols + col] !== assignments[nrow * cols + ncol];
+  for (let iter = 0; iter < thickness; iter++) {
+    const next = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let on = 0;
+        for (let dy = -1; dy <= 1 && !on; dy++) {
+          for (let dx = -1; dx <= 1 && !on; dx++) {
+            const ny = y + dy, nx = x + dx;
+            if (ny >= 0 && ny < h && nx >= 0 && nx < w && edge[ny * w + nx]) on = 1;
+          }
+        }
+        next[y * w + x] = on;
+      }
+    }
+    edge = next;
+  }
+
+  const out = ctx.createImageData(w, h);
+  const outData = out.data;
+  for (let i = 0; i < w * h; i++) {
+    const v = edge[i] ? 0 : 255;
+    outData[i * 4] = v; outData[i * 4 + 1] = v; outData[i * 4 + 2] = v; outData[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  return { width: w, height: h, dataUrl: canvas.toDataURL("image/png") };
 }
 
 // ============ canvas (PNG) drawing ============
@@ -359,10 +337,10 @@ function drawCellToCanvas(ctx, x, y, size, shape, mode, p, thickness, exportThem
   ctx.save();
   ctx.beginPath();
   ctx.rect(x + 0.5, y + 0.5, size - 1, size - 1);
-  if (mode === "color" || mode === "colouring-book") {
+  if (mode === "color") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-    ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme); ctx.stroke();
+    ctx.lineWidth = strokeWidth(0.5, thickness);
+    ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
     ctx.lineWidth = strokeWidth(Math.max(1, size * 0.03), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
@@ -383,10 +361,10 @@ function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p, thickness, exportTheme) {
   ctx.beginPath();
   ctx.moveTo(top[0], top[1]); ctx.lineTo(right[0], right[1]); ctx.lineTo(bottom[0], bottom[1]); ctx.lineTo(left[0], left[1]);
   ctx.closePath();
-  if (mode === "color" || mode === "colouring-book") {
+  if (mode === "color") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(1, thickness);
-    ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme); ctx.stroke();
+    ctx.lineWidth = strokeWidth(1, thickness);
+    ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
     ctx.lineWidth = strokeWidth(Math.max(1, w * 0.025), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
@@ -404,10 +382,10 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p, thickness, exportTheme) {
   ctx.moveTo(pts[0][0], pts[0][1]);
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
   ctx.closePath();
-  if (mode === "color" || mode === "colouring-book") {
+  if (mode === "color") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-    ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme); ctx.stroke();
+    ctx.lineWidth = strokeWidth(0.5, thickness);
+    ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
     ctx.lineWidth = strokeWidth(Math.max(1, R * 0.05), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
@@ -422,10 +400,10 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p, thickness, exportTheme) {
 function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p, thickness, exportTheme) {
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  if (mode === "color" || mode === "colouring-book") {
+  if (mode === "color") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-    ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme); ctx.stroke();
+    ctx.lineWidth = strokeWidth(0.5, thickness);
+    ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
     ctx.lineWidth = strokeWidth(Math.max(1, R * 0.05), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
@@ -443,10 +421,10 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p, thickness, exportTh
   ctx.moveTo(points[0][0], points[0][1]);
   for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
   ctx.closePath();
-  ctx.fillStyle = mode === "color" || mode === "colouring-book" ? p.hex : numberFill(p);
+  ctx.fillStyle = mode === "color" ? p.hex : numberFill(p);
   ctx.fill();
-  ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-  ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
+  ctx.lineWidth = strokeWidth(0.5, thickness);
+  ctx.strokeStyle = exportStroke(p, mode, exportTheme);
   ctx.stroke();
   if (mode === "number" && p.numberCode) {
     ctx.fillStyle = numberColor(p.hex, exportTheme);
@@ -457,15 +435,15 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p, thickness, exportTh
 }
 
 // ============ SVG string (export) markup ============
-function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTheme, cols, rows, assignments) {
+function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTheme) {
   const skip = !p.numberCode;
   if (shape === "voronoi") {
     const pts = polygon.map(({ x, y }) => `${x * w},${y * w}`).join(" ");
     const cx = polygon.reduce((sum, point) => sum + point.x, 0) / polygon.length * w;
     const cy = polygon.reduce((sum, point) => sum + point.y, 0) / polygon.length * w;
-    const fill = mode === "color" || mode === "colouring-book" ? p.hex : numberFill(p);
-    const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
-    const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.6, thickness);
+    const fill = mode === "color" ? p.hex : numberFill(p);
+    const stroke = exportStroke(p, mode, exportTheme);
+    const sw = strokeWidth(0.6, thickness);
     let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
@@ -473,20 +451,8 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTh
   if (shape === "triangle") {
     const { points, cx, cy } = trianglePoints(col, row, w);
     const pts = points.map(([x, y]) => `${x},${y}`).join(" ");
-    const fill = mode === "color" || mode === "colouring-book" ? p.hex : numberFill(p);
-    const idx = row * cols + col;
-    const colorIdx = assignments[idx];
-    let stroke = exportStroke(p, mode, exportTheme);
-    let sw = strokeWidth(0.5, thickness);
-    if (mode === "colouring-book") {
-      const hasNeighborWithDifferentColor = getNeighbors(col, row, cols, rows, "triangle").some(([nc, nr]) => {
-        const nidx = nr * cols + nc;
-        return assignments[nidx] !== colorIdx;
-      });
-      stroke = hasNeighborWithDifferentColor ? "#000" : "none";
-      sw = hasNeighborWithDifferentColor ? strokeWidth(1.5, thickness) : "0";
-    }
-    let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    const fill = mode === "color" ? p.hex : numberFill(p);
+    let s = `<polygon points="${pts}" fill="${fill}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
@@ -495,19 +461,7 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTh
     const { cx, cy } = isoCenter(col, row, w);
     const { top, right, bottom, left } = isoPoints(cx, cy, w, th);
     const pts = `${top[0]},${top[1]} ${right[0]},${right[1]} ${bottom[0]},${bottom[1]} ${left[0]},${left[1]}`;
-    const idx = row * cols + col;
-    const colorIdx = assignments[idx];
-    let stroke = exportStroke(p, mode, exportTheme);
-    let sw = strokeWidth(0.5, thickness);
-    if (mode === "colouring-book") {
-      const hasNeighborWithDifferentColor = getNeighbors(col, row, cols, rows, "isometric").some(([nc, nr]) => {
-        const nidx = nr * cols + nc;
-        return assignments[nidx] !== colorIdx;
-      });
-      stroke = hasNeighborWithDifferentColor ? "#000" : "none";
-      sw = hasNeighborWithDifferentColor ? strokeWidth(1.5, thickness) : "0";
-    }
-    let s = `<polygon points="${pts}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    let s = `<polygon points="${pts}" fill="${mode === "color" ? p.hex : numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
@@ -515,46 +469,19 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTh
     const { cx, cy } = hexCenter(col, row, w);
     const { R } = hexLayout(w);
     const pts = hexPoints(cx, cy, R * 0.98).map(([x, y]) => `${x},${y}`).join(" ");
-    const idx = row * cols + col;
-    const colorIdx = assignments[idx];
-    let stroke = exportStroke(p, mode, exportTheme);
-    let sw = strokeWidth(0.5, thickness);
-    if (mode === "colouring-book") {
-      const hasNeighborWithDifferentColor = getNeighbors(col, row, cols, rows, "hexagon").some(([nc, nr]) => {
-        const nidx = nr * cols + nc;
-        return assignments[nidx] !== colorIdx;
-      });
-      stroke = hasNeighborWithDifferentColor ? "#000" : "none";
-      sw = hasNeighborWithDifferentColor ? strokeWidth(1.5, thickness) : "0";
-    }
-    let s = `<polygon points="${pts}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    let s = `<polygon points="${pts}" fill="${mode === "color" ? p.hex : numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
   if (shape === "circle") {
     const { cx, cy, R } = circleCenter(col, row, w);
-    const idx = row * cols + col;
-    const colorIdx = assignments[idx];
-    let stroke = exportStroke(p, mode, exportTheme);
-    let sw = strokeWidth(0.5, thickness);
-    if (mode === "colouring-book") {
-      const hasNeighborWithDifferentColor = getNeighbors(col, row, cols, rows, "circle").some(([nc, nr]) => {
-        const nidx = nr * cols + nc;
-        return assignments[nidx] !== colorIdx;
-      });
-      stroke = hasNeighborWithDifferentColor ? "#000" : "none";
-      sw = hasNeighborWithDifferentColor ? strokeWidth(1.5, thickness) : "0";
-    }
-    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${mode === "color" ? p.hex : numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
-  // square raster - should not reach here since handlecoped specially
   const x = col * w, y = row * w;
-  const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-  const colourStroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
-  let s = mode === "color" || mode === "colouring-book"
-    ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="${colourStroke}" stroke-width="${sw}"/>`
+  let s = mode === "color"
+    ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`
     : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
   if (mode === "number" && !skip) {
     const cy = y + w / 2;
@@ -564,6 +491,7 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTh
 }
 
 export default function MosaicGenerator() {
+  const [appMode, setAppMode] = useState("mosaic"); // mosaic | coloring
   const [imageSrc, setImageSrc] = useState(null);
   const [imgDims, setImgDims] = useState(null);
   const [gridCols, setGridCols] = useState(50);
@@ -575,6 +503,12 @@ export default function MosaicGenerator() {
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState(null);
   const [selectedCell, setSelectedCell] = useState(null);
+  const [cbDetail, setCbDetail] = useState(900);
+  const [cbThreshold, setCbThreshold] = useState(60);
+  const [cbBlur, setCbBlur] = useState(1);
+  const [cbThickness, setCbThickness] = useState(1);
+  const [cbResult, setCbResult] = useState(null);
+  const [cbProcessing, setCbProcessing] = useState(false);
   const fileInputRef = useRef(null);
   const imgElRef = useRef(null);
 
@@ -627,11 +561,36 @@ export default function MosaicGenerator() {
   }, [gridCols, imgDims, shape]);
 
   useEffect(() => {
-    if (!imageSrc) return;
+    if (!imageSrc || appMode !== "mosaic") return;
     const t = setTimeout(() => process(), 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageSrc, gridCols, shape]);
+  }, [imageSrc, gridCols, shape, appMode]);
+
+  const processColoringBook = useCallback(() => {
+    const img = imgElRef.current;
+    if (!img) return;
+    setCbProcessing(true);
+    setTimeout(() => {
+      const out = detectEdges(img, cbDetail, cbThreshold, cbBlur, cbThickness);
+      setCbResult(out);
+      setCbProcessing(false);
+    }, 20);
+  }, [cbDetail, cbThreshold, cbBlur, cbThickness]);
+
+  useEffect(() => {
+    if (!imageSrc || appMode !== "coloring") return;
+    const t = setTimeout(() => processColoringBook(), 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageSrc, appMode, cbDetail, cbThreshold, cbBlur, cbThickness]);
+
+  const downloadColoringPng = useCallback(() => {
+    if (!cbResult) return;
+    const a = document.createElement("a");
+    a.href = cbResult.dataUrl; a.download = "coloring-page.png";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }, [cbResult]);
 
   const updateCellColor = useCallback((paletteIndex) => {
     if (selectedCell === null) return;
@@ -664,10 +623,10 @@ export default function MosaicGenerator() {
         ctx.beginPath();
         polygon.forEach(({ x, y }, pointIndex) => pointIndex === 0 ? ctx.moveTo(x * scale, y * scale) : ctx.lineTo(x * scale, y * scale));
         ctx.closePath();
-        if (mode === "color" || mode === "colouring-book") {
+        if (mode === "color") {
           ctx.fillStyle = p.hex; ctx.fill();
-          ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.6, lineThickness);
-          ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme); ctx.stroke();
+          ctx.lineWidth = strokeWidth(0.6, lineThickness);
+          ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
         } else {
           ctx.fillStyle = numberFill(p); ctx.fill();
           ctx.lineWidth = strokeWidth(0.6, lineThickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
@@ -721,42 +680,15 @@ export default function MosaicGenerator() {
       canvas.width = result.cols * scale;
       canvas.height = result.rows * scale;
       const ctx = ctx0();
-      
-      if (mode === "colouring-book") {
-        // For colouring-book, first fill all cells
-        for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
-          const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
-          ctx.fillStyle = p.hex;
-          ctx.fillRect(x * scale, y * scale, scale, scale);
-        }
-        // Then draw borders only between different colors
-        for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
-          const idx = y * result.cols + x;
-          const color = result.assignments[idx];
-          const drawTop = y === 0 || result.assignments[(y-1) * result.cols + x] !== color;
-          const drawRight = x === result.cols - 1 || result.assignments[y * result.cols + (x+1)] !== color;
-          const drawBottom = y === result.rows - 1 || result.assignments[(y+1) * result.cols + x] !== color;
-          const drawLeft = x === 0 || result.assignments[y * result.cols + (x-1)] !== color;
-          
-          ctx.strokeStyle = "#000";
-          ctx.lineWidth = strokeWidth(1.5, lineThickness);
-          
-          if (drawTop) { ctx.beginPath(); ctx.moveTo(x * scale, y * scale); ctx.lineTo((x+1) * scale, y * scale); ctx.stroke(); }
-          if (drawRight) { ctx.beginPath(); ctx.moveTo((x+1) * scale, y * scale); ctx.lineTo((x+1) * scale, (y+1) * scale); ctx.stroke(); }
-          if (drawBottom) { ctx.beginPath(); ctx.moveTo(x * scale, (y+1) * scale); ctx.lineTo((x+1) * scale, (y+1) * scale); ctx.stroke(); }
-          if (drawLeft) { ctx.beginPath(); ctx.moveTo(x * scale, y * scale); ctx.lineTo(x * scale, (y+1) * scale); ctx.stroke(); }
-        }
-      } else {
-        for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
-          const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
-          drawCellToCanvas(ctx, x * scale, y * scale, scale, shape, mode, p, lineThickness, exportTheme);
-        }
+      for (let y = 0; y < result.rows; y++) for (let x = 0; x < result.cols; x++) {
+        const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
+        drawCellToCanvas(ctx, x * scale, y * scale, scale, shape, mode, p, lineThickness, exportTheme);
       }
     }
 
     const url = canvas.toDataURL("image/png");
     const a = document.createElement("a");
-    a.href = url; a.download = mode === "number" ? "mosaic-numbers.png" : mode === "colouring-book" ? "mosaic-colouring-book.png" : "mosaic-color.png";
+    a.href = url; a.download = mode === "number" ? "mosaic-numbers.png" : "mosaic-color.png";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   }, [result, shape, lineThickness, exportTheme]);
 
@@ -767,40 +699,10 @@ export default function MosaicGenerator() {
     const { gw, gh } = gridPixelDims(shape, result.cols, result.rows, w);
 
     let cells = "";
-    if (mode === "colouring-book" && shape === "square") {
-      // For colouring-book square grids, only draw borders between different colors
-      for (let y = 0; y < result.rows; y++) {
-        for (let x = 0; x < result.cols; x++) {
-          const idx = y * result.cols + x;
-          const p = FIXED_PALETTE[result.assignments[idx]];
-          const x0 = x * w, y0 = y * w;
-          cells += `<rect x="${x0 + 0.5}" y="${y0 + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="none"/>`;
-        }
-      }
-      // Draw borders only between different colors
-      for (let y = 0; y < result.rows; y++) {
-        for (let x = 0; x < result.cols; x++) {
-          const idx = y * result.cols + x;
-          const color = result.assignments[idx];
-          const x0 = x * w, y0 = y * w;
-          const sw = strokeWidth(1.5, lineThickness);
-          const drawTop = y === 0 || result.assignments[(y-1) * result.cols + x] !== color;
-          const drawRight = x === result.cols - 1 || result.assignments[y * result.cols + (x+1)] !== color;
-          const drawBottom = y === result.rows - 1 || result.assignments[(y+1) * result.cols + x] !== color;
-          const drawLeft = x === 0 || result.assignments[y * result.cols + (x-1)] !== color;
-          
-          if (drawTop) cells += `<line x1="${x0}" y1="${y0}" x2="${x0 + w}" y2="${y0}" stroke="#000" stroke-width="${sw}"/>`;
-          if (drawRight) cells += `<line x1="${x0 + w}" y1="${y0}" x2="${x0 + w}" y2="${y0 + w}" stroke="#000" stroke-width="${sw}"/>`;
-          if (drawBottom) cells += `<line x1="${x0}" y1="${y0 + w}" x2="${x0 + w}" y2="${y0 + w}" stroke="#000" stroke-width="${sw}"/>`;
-          if (drawLeft) cells += `<line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0 + w}" stroke="#000" stroke-width="${sw}"/>`;
-        }
-      }
-    } else {
-      for (let y = 0; y < result.rows; y++) {
-        for (let x = 0; x < result.cols; x++) {
-          const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
-          cells += svgCellMarkup(shape, x, y, w, mode, p, result.polygons?.[y * result.cols + x], lineThickness, exportTheme, result.cols, result.rows, result.assignments);
-        }
+    for (let y = 0; y < result.rows; y++) {
+      for (let x = 0; x < result.cols; x++) {
+        const p = FIXED_PALETTE[result.assignments[y * result.cols + x]];
+        cells += svgCellMarkup(shape, x, y, w, mode, p, result.polygons?.[y * result.cols + x], lineThickness, exportTheme);
       }
     }
 
