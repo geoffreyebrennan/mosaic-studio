@@ -246,9 +246,10 @@ function drawCellToCanvas(ctx, x, y, size, shape, mode, p, thickness, exportThem
   ctx.save();
   ctx.beginPath();
   ctx.rect(x + 0.5, y + 0.5, size - 1, size - 1);
-  if (mode === "color") {
+  if (mode === "color" || mode === "colouring-book") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = strokeWidth(0.5, thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
+    ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
+    ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme); ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
     ctx.lineWidth = strokeWidth(Math.max(1, size * 0.03), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
@@ -269,9 +270,10 @@ function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p, thickness, exportTheme) {
   ctx.beginPath();
   ctx.moveTo(top[0], top[1]); ctx.lineTo(right[0], right[1]); ctx.lineTo(bottom[0], bottom[1]); ctx.lineTo(left[0], left[1]);
   ctx.closePath();
-  if (mode === "color") {
+  if (mode === "color" || mode === "colouring-book") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = strokeWidth(1, thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
+    ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(1, thickness);
+    ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme); ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
     ctx.lineWidth = strokeWidth(Math.max(1, w * 0.025), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
@@ -289,9 +291,10 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p, thickness, exportTheme) {
   ctx.moveTo(pts[0][0], pts[0][1]);
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
   ctx.closePath();
-  if (mode === "color") {
+  if (mode === "color" || mode === "colouring-book") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = strokeWidth(0.5, thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
+    ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
+    ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme); ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
     ctx.lineWidth = strokeWidth(Math.max(1, R * 0.05), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
@@ -306,9 +309,10 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p, thickness, exportTheme) {
 function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p, thickness, exportTheme) {
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  if (mode === "color") {
+  if (mode === "color" || mode === "colouring-book") {
     ctx.fillStyle = p.hex; ctx.fill();
-    ctx.lineWidth = strokeWidth(0.5, thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
+    ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
+    ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme); ctx.stroke();
   } else {
     ctx.fillStyle = numberFill(p); ctx.fill();
     ctx.lineWidth = strokeWidth(Math.max(1, R * 0.05), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
@@ -326,10 +330,10 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p, thickness, exportTh
   ctx.moveTo(points[0][0], points[0][1]);
   for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
   ctx.closePath();
-  ctx.fillStyle = mode === "color" ? p.hex : numberFill(p);
+  ctx.fillStyle = mode === "color" || mode === "colouring-book" ? p.hex : numberFill(p);
   ctx.fill();
-  ctx.lineWidth = strokeWidth(0.5, thickness);
-  ctx.strokeStyle = exportStroke(p, mode, exportTheme);
+  ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
+  ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
   ctx.stroke();
   if (mode === "number" && p.numberCode) {
     ctx.fillStyle = numberColor(p.hex, exportTheme);
@@ -346,17 +350,20 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTh
     const pts = polygon.map(({ x, y }) => `${x * w},${y * w}`).join(" ");
     const cx = polygon.reduce((sum, point) => sum + point.x, 0) / polygon.length * w;
     const cy = polygon.reduce((sum, point) => sum + point.y, 0) / polygon.length * w;
-    const fill = mode === "color" ? p.hex : numberFill(p);
-    let s = `<polygon points="${pts}" fill="${fill}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.6, thickness)}"/>`;
+    const fill = mode === "color" || mode === "colouring-book" ? p.hex : numberFill(p);
+    const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
+    const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.6, thickness);
+    let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
   if (shape === "triangle") {
     const { points, cx, cy } = trianglePoints(col, row, w);
     const pts = points.map(([x, y]) => `${x},${y}`).join(" ");
-    const fill = mode === "color" ? p.hex : numberFill(p);
-    const stroke = exportStroke(p, mode, exportTheme);
-    let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth(0.5, thickness)}"/>`;
+    const fill = mode === "color" || mode === "colouring-book" ? p.hex : numberFill(p);
+    const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
+    const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
+    let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
     if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
@@ -365,8 +372,10 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTh
     const { cx, cy } = isoCenter(col, row, w);
     const { top, right, bottom, left } = isoPoints(cx, cy, w, th);
     const pts = `${top[0]},${top[1]} ${right[0]},${right[1]} ${bottom[0]},${bottom[1]} ${left[0]},${left[1]}`;
-    if (mode === "color") {
-      return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`;
+    if (mode === "color" || mode === "colouring-book") {
+      const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
+      const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
+      return `<polygon points="${pts}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
     }
     let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
@@ -376,22 +385,32 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTh
     const { cx, cy } = hexCenter(col, row, w);
     const { R } = hexLayout(w);
     const pts = hexPoints(cx, cy, R * 0.98).map(([x, y]) => `${x},${y}`).join(" ");
-    if (mode === "color") return `<polygon points="${pts}" fill="${p.hex}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`;
+    if (mode === "color" || mode === "colouring-book") {
+      const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
+      const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
+      return `<polygon points="${pts}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    }
     let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
   if (shape === "circle") {
     const { cx, cy, R } = circleCenter(col, row, w);
-    if (mode === "color") return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`;
+    if (mode === "color" || mode === "colouring-book") {
+      const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
+      const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
+      return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    }
     let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
     if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
     return s;
   }
   // square raster
   const x = col * w, y = row * w;
-  let s = mode === "color"
-    ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`
+  const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
+  const colourStroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
+  let s = mode === "color" || mode === "colouring-book"
+    ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="${colourStroke}" stroke-width="${sw}"/>`
     : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
   if (mode === "number" && !skip) {
     const cy = y + w / 2;
@@ -501,12 +520,18 @@ export default function MosaicGenerator() {
         ctx.beginPath();
         polygon.forEach(({ x, y }, pointIndex) => pointIndex === 0 ? ctx.moveTo(x * scale, y * scale) : ctx.lineTo(x * scale, y * scale));
         ctx.closePath();
-        ctx.fillStyle = mode === "color" ? p.hex : numberFill(p); ctx.fill();
-        ctx.lineWidth = strokeWidth(0.6, lineThickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
-        if (mode === "number" && p.numberCode) {
-          const center = polygon.reduce((sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }), { x: 0, y: 0 });
-          ctx.fillStyle = numberColor(p.hex, exportTheme); ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
-          ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(p.numberCode, center.x / polygon.length * scale, center.y / polygon.length * scale + 3);
+        if (mode === "color" || mode === "colouring-book") {
+          ctx.fillStyle = p.hex; ctx.fill();
+          ctx.lineWidth = mode === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.6, lineThickness);
+          ctx.strokeStyle = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme); ctx.stroke();
+        } else {
+          ctx.fillStyle = numberFill(p); ctx.fill();
+          ctx.lineWidth = strokeWidth(0.6, lineThickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
+          if (p.numberCode) {
+            const center = polygon.reduce((sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }), { x: 0, y: 0 });
+            ctx.fillStyle = numberColor(p.hex, exportTheme); ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
+            ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(p.numberCode, center.x / polygon.length * scale, center.y / polygon.length * scale + 3);
+          }
         }
       });
     } else if (shape === "triangle") {
@@ -560,7 +585,7 @@ export default function MosaicGenerator() {
 
     const url = canvas.toDataURL("image/png");
     const a = document.createElement("a");
-    a.href = url; a.download = mode === "number" ? "mosaic-numbers.png" : "mosaic-color.png";
+    a.href = url; a.download = mode === "number" ? "mosaic-numbers.png" : mode === "colouring-book" ? "mosaic-colouring-book.png" : "mosaic-color.png";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   }, [result, shape, lineThickness, exportTheme]);
 
@@ -609,7 +634,7 @@ export default function MosaicGenerator() {
     const blob = new Blob([svg], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = mode === "number" ? "mosaic-numbers.svg" : "mosaic-color.svg";
+    a.href = url; a.download = mode === "number" ? "mosaic-numbers.svg" : mode === "colouring-book" ? "mosaic-colouring-book.svg" : "mosaic-color.svg";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }, [result, shape, cellPx, lineThickness, exportTheme]);
@@ -695,7 +720,7 @@ export default function MosaicGenerator() {
             <div className="flex flex-col gap-2">
               <label style={{ fontSize: 11, letterSpacing: "0.08em" }} className="uppercase font-semibold">View</label>
               <div style={{ border: `1px solid ${LINE}` }} className="flex rounded-sm overflow-hidden">
-                {["color", "number"].map((v) => (
+                {["color", "colouring-book", "number"].map((v) => (
                   <button key={v} onClick={() => setView(v)}
                     style={{ flex: 1, padding: "8px 0", fontSize: 12, fontWeight: 600, textTransform: "capitalize", background: view === v ? MUSTARD : "transparent", color: INK }}>
                     {v}
@@ -744,6 +769,11 @@ export default function MosaicGenerator() {
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-sm font-semibold hover:bg-black/5 transition disabled:opacity-40">
                 <Download size={15} /> Color PNG
               </button>
+              <button onClick={() => downloadPng("colouring-book")} disabled={!result}
+                style={{ border: `1px solid ${INK}`, color: INK }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-sm font-semibold hover:bg-black/5 transition disabled:opacity-40">
+                <Download size={15} /> Colouring Book PNG
+              </button>
               <button onClick={() => downloadPng("number")} disabled={!result}
                 style={{ border: `1px solid ${INK}`, color: INK }}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-sm font-semibold hover:bg-black/5 transition disabled:opacity-40">
@@ -757,6 +787,11 @@ export default function MosaicGenerator() {
                 style={{ border: `1px solid ${TEAL}`, color: TEAL }}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-sm font-semibold hover:bg-black/5 transition disabled:opacity-40">
                 <Download size={15} /> Color SVG
+              </button>
+              <button onClick={() => downloadSvg("colouring-book")} disabled={!result}
+                style={{ border: `1px solid ${TEAL}`, color: TEAL }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-sm font-semibold hover:bg-black/5 transition disabled:opacity-40">
+                <Download size={15} /> Colouring Book SVG
               </button>
               <button onClick={() => downloadSvg("number")} disabled={!result}
                 style={{ border: `1px solid ${TEAL}`, color: TEAL }}
@@ -808,10 +843,10 @@ export default function MosaicGenerator() {
                       const selected = selectedCell === i;
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
-                          <polygon points={points} fill={view === "color" ? p.hex : numberFill(p)}
-                            stroke={selected ? MUSTARD : view === "color" ? "rgba(255,255,255,0.22)" : "rgba(128,128,128,0.6)"}
-                            strokeWidth={selected ? 2 : strokeWidth(0.6, lineThickness)} />
-                          {showNum && p.numberCode && <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+                          <polygon points={points} fill={view === "color" || view === "colouring-book" ? p.hex : numberFill(p)}
+                            stroke={selected ? MUSTARD : view === "color" || view === "colouring-book" ? (view === "colouring-book" ? "#000" : "rgba(255,255,255,0.22)") : "rgba(128,128,128,0.6)"}
+                            strokeWidth={selected ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.6, lineThickness)} />
+                          {showNum && p.numberCode && view !== "colouring-book" && <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                             fontSize={Math.max(6, cellPx * 0.42)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>{p.numberCode}</text>}
                         </g>
                       );
@@ -834,10 +869,10 @@ export default function MosaicGenerator() {
                       const selected = selectedCell === i;
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
-                          <polygon points={poly} fill={view === "color" ? p.hex : numberFill(p)}
-                            stroke={selected ? MUSTARD : view === "color" ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)"}
-                            strokeWidth={selected ? 2 : strokeWidth(0.5, lineThickness)} />
-                          {showNum && p.numberCode && (
+                          <polygon points={poly} fill={view === "color" || view === "colouring-book" ? p.hex : numberFill(p)}
+                            stroke={selected ? MUSTARD : view === "color" || view === "colouring-book" ? (view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)") : "rgba(255,255,255,0.4)"}
+                            strokeWidth={selected ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} />
+                          {showNum && p.numberCode && view !== "colouring-book" && (
                             <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                               fontSize={Math.max(6, cellPx * 0.64)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>
                               {p.numberCode}
@@ -862,11 +897,11 @@ export default function MosaicGenerator() {
                       const { cx, cy } = isoCenter(col, row, w);
                       const { top, right, bottom, left } = isoPoints(cx, cy, w, th);
                       const poly = `${top[0]},${top[1]} ${right[0]},${right[1]} ${bottom[0]},${bottom[1]} ${left[0]},${left[1]}`;
-                      if (view === "color") {
+                      if (view === "color" || view === "colouring-book") {
                         return (
                           <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined }}>
-                            <polygon points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.5, lineThickness)} />
-                            <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke="rgba(255,255,255,0.15)" strokeWidth={strokeWidth(0.5, lineThickness)} />
+                            <polygon points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} />
+                            <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke={view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} />
                           </g>
                         );
                       }
@@ -900,7 +935,7 @@ export default function MosaicGenerator() {
                       const { cx, cy } = hexCenter(col, row, cellPx);
                       const pts = hexPoints(cx, cy, R * 0.98);
                       const poly = pts.map(([x, y]) => `${x},${y}`).join(" ");
-                      if (view === "color") return <polygon key={i} points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
+                      if (view === "color" || view === "colouring-book") return <polygon key={i} points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
                           <polygon points={poly} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
@@ -928,7 +963,7 @@ export default function MosaicGenerator() {
                       const p = FIXED_PALETTE[idx];
                       const col = i % result.cols, row = (i - col) / result.cols;
                       const { cx, cy } = circleCenter(col, row, cellPx);
-                      if (view === "color") return <circle key={i} cx={cx} cy={cy} r={R} fill={p.hex} stroke={selectedCell === i ? MUSTARD : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
+                      if (view === "color" || view === "colouring-book") return <circle key={i} cx={cx} cy={cy} r={R} fill={p.hex} stroke={selectedCell === i ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
                       return (
                         <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
                           <circle cx={cx} cy={cy} r={R} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
@@ -950,10 +985,10 @@ export default function MosaicGenerator() {
                   {result.assignments.map((idx, i) => {
                     const p = FIXED_PALETTE[idx];
                     const inner = { width: innerSize, height: innerSize, ...shapeStyle(shape) };
-                    if (view === "color") {
+                    if (view === "color" || view === "colouring-book") {
                       return (
                         <div key={i} onClick={() => setSelectedCell(i)} style={{ width: cellPx, height: cellPx, cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined, outlineOffset: -2 }} className="flex items-center justify-center">
-                          <div style={{ ...inner, background: p.hex, outline: cellPx > 8 ? `${strokeWidth(0.5, lineThickness)}px solid rgba(255,255,255,0.10)` : "none" }} />
+                          <div style={{ ...inner, background: p.hex, outline: cellPx > 8 ? `${strokeWidth(view === "colouring-book" ? 1.5 : 0.5, lineThickness)}px solid ${view === "colouring-book" ? "#000" : "rgba(255,255,255,0.10)"}` : "none" }} />
                         </div>
                       );
                     }
