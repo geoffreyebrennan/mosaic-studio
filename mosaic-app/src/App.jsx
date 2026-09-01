@@ -329,7 +329,25 @@ function detectEdges(img, maxDim, threshold, blurRadius, thickness) {
     outData[i * 4] = v; outData[i * 4 + 1] = v; outData[i * 4 + 2] = v; outData[i * 4 + 3] = 255;
   }
   ctx.putImageData(out, 0, 0);
-  return { width: w, height: h, dataUrl: canvas.toDataURL("image/png") };
+  return { width: w, height: h, edge, dataUrl: canvas.toDataURL("image/png") };
+}
+
+function coloringPageSvg({ width, height, edge }) {
+  const paths = [];
+  for (let y = 0; y < height; y++) {
+    let x = 0;
+    while (x < width) {
+      if (!edge[y * width + x]) { x++; continue; }
+      const start = x;
+      while (x < width && edge[y * width + x]) x++;
+      const run = x - start;
+      paths.push(`M${start} ${y}h${run}v1H${start}Z`);
+    }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">
+<rect width="100%" height="100%" fill="white"/>
+<path d="${paths.join("")}" fill="black"/>
+</svg>`;
 }
 
 // ============ canvas (PNG) drawing ============
@@ -579,6 +597,16 @@ export default function MosaicGenerator() {
     const a = document.createElement("a");
     a.href = cbResult.dataUrl; a.download = "coloring-page.png";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }, [cbResult]);
+
+  const downloadColoringSvg = useCallback(() => {
+    if (!cbResult) return;
+    const blob = new Blob([coloringPageSvg(cbResult)], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "coloring-page.svg";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }, [cbResult]);
 
   const updateCellColor = useCallback((paletteIndex) => {
@@ -931,7 +959,10 @@ export default function MosaicGenerator() {
               <input type="range" min={0} max={3} step={1} value={cbThickness} onChange={(e) => setCbThickness(Number(e.target.value))} />
             </div>
             <button onClick={downloadColoringPng} disabled={!cbResult} style={{ border: `1px solid ${TEAL}`, color: TEAL }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-sm font-semibold hover:bg-black/5 transition disabled:opacity-40">
-              <Download size={15} /> Download colouring page
+              <Download size={15} /> Download PNG
+            </button>
+            <button onClick={downloadColoringSvg} disabled={!cbResult} style={{ border: `1px solid ${TEAL}`, color: TEAL }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-sm font-semibold hover:bg-black/5 transition disabled:opacity-40">
+              <Download size={15} /> Download SVG
             </button>
           </>
         )}
