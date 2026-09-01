@@ -325,27 +325,29 @@ function detectColourGroupOutlines(img, maxDim, separation, smoothing, thickness
     }
   }
 
-  for (let iter = 0; iter < thickness; iter++) {
-    const next = new Uint8Array(w * h);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let on = 0;
-        for (let dy = -1; dy <= 1 && !on; dy++) {
-          for (let dx = -1; dx <= 1 && !on; dx++) {
-            const ny = y + dy, nx = x + dx;
-            if (ny >= 0 && ny < h && nx >= 0 && nx < w && edge[ny * w + nx]) on = 1;
-          }
-        }
-        next[y * w + x] = on;
-      }
-    }
-    edge = next;
+  // Render the one-pixel boundary through a small Gaussian mask instead of
+  // square-neighbour dilation. This gives diagonals and curves a consistent,
+  // ink-like weight with antialiased edges.
+  const mask = document.createElement("canvas");
+  mask.width = w; mask.height = h;
+  const maskCtx = mask.getContext("2d");
+  const maskData = maskCtx.createImageData(w, h);
+  for (let i = 0; i < edge.length; i++) {
+    maskData.data[i * 4 + 3] = edge[i] ? 255 : 0;
   }
+  maskCtx.putImageData(maskData, 0, 0);
+  const softened = document.createElement("canvas");
+  softened.width = w; softened.height = h;
+  const softenedCtx = softened.getContext("2d");
+  softenedCtx.filter = `blur(${Math.max(0.35, thickness * 0.8)}px)`;
+  softenedCtx.drawImage(mask, 0, 0);
+  const alpha = softenedCtx.getImageData(0, 0, w, h).data;
 
   const out = ctx.createImageData(w, h);
   const outData = out.data;
   for (let i = 0; i < w * h; i++) {
-    const v = edge[i] ? 0 : 255;
+    const coverage = Math.min(1, Math.max(0, (alpha[i * 4 + 3] / 255 - 0.08) * 1.45));
+    const v = Math.round(255 * (1 - coverage));
     outData[i * 4] = v; outData[i * 4 + 1] = v; outData[i * 4 + 2] = v; outData[i * 4 + 3] = 255;
   }
   ctx.putImageData(out, 0, 0);
@@ -365,8 +367,9 @@ function coloringPageSvg({ width, height, edge }) {
     }
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+<defs><filter id="line-smoothing" x="-1%" y="-1%" width="102%" height="102%"><feGaussianBlur stdDeviation="0.35"/></filter></defs>
 <rect width="100%" height="100%" fill="white"/>
-<path d="${paths.join("")}" fill="black"/>
+<path d="${paths.join("")}" fill="black" filter="url(#line-smoothing)"/>
 </svg>`;
 }
 
