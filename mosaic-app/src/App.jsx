@@ -241,7 +241,6 @@ function rowsForAspectRatio(shape, cols, aspectRatio) {
   return bestRows;
 }
 
-<<<<<<< HEAD
 // ============ coloring book mode: edge detection (Sobel), no AI ============
 // separable box blur — O(w*h) regardless of radius, used to denoise before Sobel
 function boxBlur(src, w, h, radius) {
@@ -333,8 +332,6 @@ function detectEdges(img, maxDim, threshold, blurRadius, thickness) {
   return { width: w, height: h, dataUrl: canvas.toDataURL("image/png") };
 }
 
-=======
->>>>>>> parent of e3af826 (Coloring book fix)
 // ============ canvas (PNG) drawing ============
 function drawCellToCanvas(ctx, x, y, size, shape, mode, p, thickness, exportTheme) {
   ctx.save();
@@ -440,97 +437,46 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p, thickness, exportTh
 // ============ SVG string (export) markup ============
 function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTheme) {
   const skip = !p.numberCode;
+  const isOutline = mode === "colouring-book";
+  const isColor = mode === "color" || isOutline;
+  const fill = isColor ? p.hex : numberFill(p);
+  const stroke = isOutline ? "#000000" : exportStroke(p, mode, exportTheme);
+  const normalWidth = strokeWidth(0.75, thickness);
+  const outlineWidth = strokeWidth(1.5, thickness);
+  const text = (cx, cy) => mode === "number" && !skip
+    ? `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`
+    : "";
   if (shape === "voronoi") {
     const pts = polygon.map(({ x, y }) => `${x * w},${y * w}`).join(" ");
     const cx = polygon.reduce((sum, point) => sum + point.x, 0) / polygon.length * w;
     const cy = polygon.reduce((sum, point) => sum + point.y, 0) / polygon.length * w;
-    const fill = mode === "color" ? p.hex : numberFill(p);
-    const stroke = exportStroke(p, mode, exportTheme);
-    const sw = strokeWidth(0.6, thickness);
-    let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
-    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
-    return s;
+    return `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${isOutline ? outlineWidth : strokeWidth(0.6, thickness)}"/>${text(cx, cy)}`;
   }
   if (shape === "triangle") {
     const { points, cx, cy } = trianglePoints(col, row, w);
     const pts = points.map(([x, y]) => `${x},${y}`).join(" ");
-<<<<<<< HEAD
-    const fill = mode === "color" ? p.hex : numberFill(p);
-    let s = `<polygon points="${pts}" fill="${fill}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`;
-=======
-    const fill = mode === "color" || mode === "colouring-book" ? p.hex : numberFill(p);
-    const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
-    const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-    let s = `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
->>>>>>> parent of e3af826 (Coloring book fix)
-    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
-    return s;
+    return `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${isOutline ? outlineWidth : strokeWidth(0.5, thickness)}"/>${text(cx, cy)}`;
   }
   if (shape === "isometric") {
     const th = w * ISO_TRI_H;
     const { cx, cy } = isoCenter(col, row, w);
     const { top, right, bottom, left } = isoPoints(cx, cy, w, th);
     const pts = `${top[0]},${top[1]} ${right[0]},${right[1]} ${bottom[0]},${bottom[1]} ${left[0]},${left[1]}`;
-<<<<<<< HEAD
-    let s = `<polygon points="${pts}" fill="${mode === "color" ? p.hex : numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
-    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
-=======
-    if (mode === "color" || mode === "colouring-book") {
-      const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
-      const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-      return `<polygon points="${pts}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
-    }
-    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
-    if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
->>>>>>> parent of e3af826 (Coloring book fix)
-    return s;
+    return `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${isOutline ? outlineWidth : normalWidth}"/>${text(cx, cy)}`;
   }
   if (shape === "hexagon") {
     const { cx, cy } = hexCenter(col, row, w);
     const { R } = hexLayout(w);
     const pts = hexPoints(cx, cy, R * 0.98).map(([x, y]) => `${x},${y}`).join(" ");
-<<<<<<< HEAD
-    let s = `<polygon points="${pts}" fill="${mode === "color" ? p.hex : numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
-    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
-=======
-    if (mode === "color" || mode === "colouring-book") {
-      const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
-      const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-      return `<polygon points="${pts}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
-    }
-    let s = `<polygon points="${pts}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
-    if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
->>>>>>> parent of e3af826 (Coloring book fix)
-    return s;
+    return `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${isOutline ? outlineWidth : normalWidth}"/>${text(cx, cy)}`;
   }
   if (shape === "circle") {
     const { cx, cy, R } = circleCenter(col, row, w);
-<<<<<<< HEAD
-    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${mode === "color" ? p.hex : numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
-    if (mode === "number" && !skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
-    return s;
-  }
-=======
-    if (mode === "color" || mode === "colouring-book") {
-      const stroke = mode === "colouring-book" ? "#000" : exportStroke(p, mode, exportTheme);
-      const sw = mode === "colouring-book" ? strokeWidth(1.5, thickness) : strokeWidth(0.5, thickness);
-      return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${p.hex}" stroke="${stroke}" stroke-width="${sw}"/>`;
-    }
-    let s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
-    if (!skip) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
-    return s;
+    return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${fill}" stroke="${stroke}" stroke-width="${isOutline ? outlineWidth : normalWidth}"/>${text(cx, cy)}`;
   }
   // square raster
->>>>>>> parent of e3af826 (Coloring book fix)
   const x = col * w, y = row * w;
-  let s = mode === "color"
-    ? `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${p.hex}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.5, thickness)}"/>`
-    : `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${numberFill(p)}" stroke="${exportStroke(p, mode, exportTheme)}" stroke-width="${strokeWidth(0.75, thickness)}"/>`;
-  if (mode === "number" && !skip) {
-    const cy = y + w / 2;
-    s += `<text x="${x + w / 2}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`;
-  }
-  return s;
+  return `<rect x="${x + 0.5}" y="${y + 0.5}" width="${w - 1}" height="${w - 1}" fill="${fill}" stroke="${stroke}" stroke-width="${isOutline ? outlineWidth : strokeWidth(0.5, thickness)}"/>${text(x + w / 2, y + w / 2)}`;
 }
 
 export default function MosaicGenerator() {
@@ -802,6 +748,15 @@ export default function MosaicGenerator() {
           <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em" }}>Image → Color-by-Number</div>
         </div>
 
+        <div className="flex rounded-sm overflow-hidden" style={{ border: `1px solid ${LINE}` }}>
+          {[["mosaic", "Mosaic"], ["coloring", "Colouring book"]].map(([mode, label]) => (
+            <button key={mode} type="button" onClick={() => setAppMode(mode)}
+              style={{ flex: 1, padding: "9px 4px", fontSize: 12, fontWeight: 700, background: appMode === mode ? MUSTARD : "transparent", color: INK }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
           <button
@@ -814,7 +769,7 @@ export default function MosaicGenerator() {
           </button>
         </div>
 
-        {imageSrc && (
+        {imageSrc && appMode === "mosaic" && (
           <>
             <div className="flex flex-col gap-2">
               <label style={{ fontSize: 11, letterSpacing: "0.08em" }} className="uppercase font-semibold flex justify-between">
@@ -953,6 +908,33 @@ export default function MosaicGenerator() {
             )}
           </>
         )}
+
+        {imageSrc && appMode === "coloring" && (
+          <>
+            <div style={{ fontSize: 12, color: "#6B6B60", lineHeight: 1.5 }}>
+              Convert your image into a clean black-and-white page. Adjust the controls to preserve the details you want to colour.
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="uppercase font-semibold flex justify-between" style={{ fontSize: 11, letterSpacing: "0.08em" }}><span>Detail</span><span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>{cbDetail}px</span></label>
+              <input type="range" min={400} max={1600} step={50} value={cbDetail} onChange={(e) => setCbDetail(Number(e.target.value))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="uppercase font-semibold flex justify-between" style={{ fontSize: 11, letterSpacing: "0.08em" }}><span>Edge sensitivity</span><span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>{cbThreshold}</span></label>
+              <input type="range" min={20} max={180} step={5} value={cbThreshold} onChange={(e) => setCbThreshold(Number(e.target.value))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="uppercase font-semibold flex justify-between" style={{ fontSize: 11, letterSpacing: "0.08em" }}><span>Smoothing</span><span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>{cbBlur}</span></label>
+              <input type="range" min={0} max={4} step={1} value={cbBlur} onChange={(e) => setCbBlur(Number(e.target.value))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="uppercase font-semibold flex justify-between" style={{ fontSize: 11, letterSpacing: "0.08em" }}><span>Line weight</span><span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>{cbThickness}</span></label>
+              <input type="range" min={0} max={3} step={1} value={cbThickness} onChange={(e) => setCbThickness(Number(e.target.value))} />
+            </div>
+            <button onClick={downloadColoringPng} disabled={!cbResult} style={{ border: `1px solid ${TEAL}`, color: TEAL }} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-sm text-sm font-semibold hover:bg-black/5 transition disabled:opacity-40">
+              <Download size={15} /> Download colouring page
+            </button>
+          </>
+        )}
       </div>
 
       {/* main area */}
@@ -976,6 +958,22 @@ export default function MosaicGenerator() {
                 </div>
               )}
 
+              {appMode === "coloring" && (
+                <div className="relative" style={{ background: "#fff" }}>
+                  {cbProcessing && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                      <Loader2 className="animate-spin" style={{ color: MUSTARD }} size={28} />
+                    </div>
+                  )}
+                  {cbResult ? (
+                    <img src={cbResult.dataUrl} alt="Generated colouring page" style={{ display: "block", maxWidth: "min(100%, 1000px)", height: "auto" }} />
+                  ) : (
+                    <div className="p-16 text-center" style={{ color: "#777" }}>Preparing your colouring page…</div>
+                  )}
+                </div>
+              )}
+
+              <div hidden={appMode !== "mosaic"}>
               {result && shape === "voronoi" && result.polygons && (() => {
                 const svgW = result.cols * cellPx, svgH = result.rows * cellPx;
                 const showNum = view === "number" && cellPx >= 10;
@@ -1157,12 +1155,13 @@ export default function MosaicGenerator() {
                   })}
                 </div>
               )}
+              </div>
             </div>
           </div>
         )}
 
         {/* palette legend */}
-        {result && (
+        {appMode === "mosaic" && result && (
           <div style={{ borderTop: `1px solid ${LINE}`, background: PANEL }} className="p-4 flex flex-wrap gap-2 max-h-40 overflow-auto">
             {result.palette.map((p) => (
               <div key={p.code} style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full">
