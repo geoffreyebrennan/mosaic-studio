@@ -11,7 +11,7 @@ const MUSTARD = "#C79A2B";
 const TEAL = "#2F6E6A";
 const NUMBER_BACKGROUND = "#FFFFFF";
 const NUMBER_LABEL = "#AAAAAA";
-const NUMBER_EXPORT_FONT_SIZE = 9;
+const NUMBER_EXPORT_FONT_SIZE = 7;
 const LEGEND_FONT_SIZE = 14;
 const EXPORT_SETTINGS = {
   light: { background: "#FFFFFF", text: INK, outline: "#808080" },
@@ -391,7 +391,7 @@ function drawCellToCanvas(ctx, x, y, size, shape, mode, p, thickness, exportThem
   if (mode === "number" && p.numberCode) {
     const cy = y + size / 2;
     ctx.fillStyle = numberColor(p.hex, exportTheme);
-    ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
+    ctx.font = `400 ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(p.numberCode, x + size / 2, cy + 3);
   }
@@ -411,7 +411,7 @@ function drawIsoCellToCanvas(ctx, cx, cy, w, mode, p, thickness, exportTheme) {
     ctx.lineWidth = strokeWidth(Math.max(1, w * 0.025), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex, exportTheme);
-      ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
+      ctx.font = `400 ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(p.numberCode, cx, cy + 3);
     }
@@ -432,7 +432,7 @@ function drawHexCellToCanvas(ctx, cx, cy, R, mode, p, thickness, exportTheme) {
     ctx.lineWidth = strokeWidth(Math.max(1, R * 0.05), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex, exportTheme);
-      ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
+      ctx.font = `400 ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(p.numberCode, cx, cy + 3);
     }
@@ -450,7 +450,7 @@ function drawCircleCellToCanvas(ctx, cx, cy, R, mode, p, thickness, exportTheme)
     ctx.lineWidth = strokeWidth(Math.max(1, R * 0.05), thickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
     if (p.numberCode) {
       ctx.fillStyle = numberColor(p.hex, exportTheme);
-      ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
+      ctx.font = `400 ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(p.numberCode, cx, cy + 3);
     }
@@ -469,7 +469,7 @@ function drawTriangleCellToCanvas(ctx, col, row, w, mode, p, thickness, exportTh
   ctx.stroke();
   if (mode === "number" && p.numberCode) {
     ctx.fillStyle = numberColor(p.hex, exportTheme);
-    ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
+    ctx.font = `400 ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(p.numberCode, cx, cy + 3);
   }
@@ -485,7 +485,7 @@ function svgCellMarkup(shape, col, row, w, mode, p, polygon, thickness, exportTh
   const normalWidth = strokeWidth(0.75, thickness);
   const outlineWidth = strokeWidth(1.5, thickness);
   const text = (cx, cy) => mode === "number" && !skip
-    ? `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="700" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`
+    ? `<text x="${cx}" y="${cy + 3}" text-anchor="middle" dominant-baseline="middle" font-size="${NUMBER_EXPORT_FONT_SIZE}" font-family="monospace" font-weight="400" fill="${numberColor(p.hex, exportTheme)}">${numberLabel(p)}</text>`
     : "";
   if (shape === "voronoi") {
     const pts = polygon.map(({ x, y }) => `${x * w},${y * w}`).join(" ");
@@ -672,7 +672,7 @@ export default function MosaicGenerator() {
           ctx.lineWidth = strokeWidth(0.6, lineThickness); ctx.strokeStyle = exportStroke(p, mode, exportTheme); ctx.stroke();
           if (p.numberCode) {
             const center = polygon.reduce((sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }), { x: 0, y: 0 });
-            ctx.fillStyle = numberColor(p.hex, exportTheme); ctx.font = `bold ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
+            ctx.fillStyle = numberColor(p.hex, exportTheme); ctx.font = `400 ${NUMBER_EXPORT_FONT_SIZE}px ui-monospace, monospace`;
             ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(p.numberCode, center.x / polygon.length * scale, center.y / polygon.length * scale + 3);
           }
         }
