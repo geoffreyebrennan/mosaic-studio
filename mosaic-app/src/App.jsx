@@ -241,8 +241,8 @@ function rowsForAspectRatio(shape, cols, aspectRatio) {
   return bestRows;
 }
 
-// ============ coloring book mode: edge detection (Sobel), no AI ============
-// separable box blur — O(w*h) regardless of radius, used to denoise before Sobel
+// ============ coloring book mode: smoothed colour-group outlines ============
+// separable box blur — O(w*h) regardless of radius
 function boxBlur(src, w, h, radius) {
   if (radius <= 0) return src;
   const tmp = new Float32Array(w * h);
@@ -271,37 +271,57 @@ function boxBlur(src, w, h, radius) {
   return dst;
 }
 
-const SOBEL_GX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
-const SOBEL_GY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
-
-function detectEdges(img, maxDim, threshold, blurRadius, thickness) {
+function detectColourGroupOutlines(img, maxDim, separation, smoothing, thickness) {
   const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.max(1, Math.round(img.naturalWidth * scale));
   const h = Math.max(1, Math.round(img.naturalHeight * scale));
 
+  // Group the image at a deliberately lower resolution first. It removes tiny
+  // photographic texture; scaling the posterized image back up with filtering
+  // produces naturally smooth boundaries rather than mosaic-like tile edges.
+  const groupScale = Math.min(1, 260 / Math.max(w, h));
+  const groupW = Math.max(1, Math.round(w * groupScale));
+  const groupH = Math.max(1, Math.round(h * groupScale));
+  const groups = document.createElement("canvas");
+  groups.width = groupW; groups.height = groupH;
+  const groupCtx = groups.getContext("2d");
+  groupCtx.imageSmoothingEnabled = true;
+  groupCtx.imageSmoothingQuality = "high";
+  groupCtx.drawImage(img, 0, 0, groupW, groupH);
+  const source = groupCtx.getImageData(0, 0, groupW, groupH).data;
+
+  const channels = [new Float32Array(groupW * groupH), new Float32Array(groupW * groupH), new Float32Array(groupW * groupH)];
+  for (let i = 0; i < groupW * groupH; i++) {
+    channels[0][i] = source[i * 4]; channels[1][i] = source[i * 4 + 1]; channels[2][i] = source[i * 4 + 2];
+  }
+  const blur = Math.max(1, smoothing + 1);
+  const smoothChannels = channels.map((channel) => boxBlur(channel, groupW, groupH, blur));
+  const grouped = groupCtx.createImageData(groupW, groupH);
+  for (let i = 0; i < groupW * groupH; i++) {
+    const paletteIndex = nearestPaletteIndex([smoothChannels[0][i], smoothChannels[1][i], smoothChannels[2][i]]);
+    const rgb = FIXED_PALETTE[paletteIndex].rgb;
+    grouped.data[i * 4] = rgb[0]; grouped.data[i * 4 + 1] = rgb[1]; grouped.data[i * 4 + 2] = rgb[2]; grouped.data[i * 4 + 3] = 255;
+  }
+  groupCtx.putImageData(grouped, 0, 0);
+
   const canvas = document.createElement("canvas");
   canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, w, h);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(groups, 0, 0, w, h);
   const data = ctx.getImageData(0, 0, w, h).data;
 
-  const gray = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) {
-    gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
-  }
-  const smoothed = boxBlur(gray, w, h, blurRadius);
-
   let edge = new Uint8Array(w * h);
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      let gx = 0, gy = 0, k = 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const v = smoothed[(y + dy) * w + (x + dx)];
-          gx += v * SOBEL_GX[k]; gy += v * SOBEL_GY[k]; k++;
-        }
+  for (let y = 0; y < h - 1; y++) {
+    for (let x = 0; x < w - 1; x++) {
+      const i = (y * w + x) * 4;
+      const right = i + 4, below = i + w * 4;
+      const horizontal = Math.abs(data[i] - data[right]) + Math.abs(data[i + 1] - data[right + 1]) + Math.abs(data[i + 2] - data[right + 2]);
+      const vertical = Math.abs(data[i] - data[below]) + Math.abs(data[i + 1] - data[below + 1]) + Math.abs(data[i + 2] - data[below + 2]);
+      if (Math.max(horizontal, vertical) >= separation) {
+        edge[y * w + x] = 1;
       }
-      edge[y * w + x] = Math.sqrt(gx * gx + gy * gy) > threshold ? 1 : 0;
     }
   }
 
@@ -344,7 +364,7 @@ function coloringPageSvg({ width, height, edge }) {
       paths.push(`M${start} ${y}h${run}v1H${start}Z`);
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
 <rect width="100%" height="100%" fill="white"/>
 <path d="${paths.join("")}" fill="black"/>
 </svg>`;
@@ -511,7 +531,7 @@ export default function MosaicGenerator() {
   const [result, setResult] = useState(null);
   const [selectedCell, setSelectedCell] = useState(null);
   const [cbDetail, setCbDetail] = useState(900);
-  const [cbThreshold, setCbThreshold] = useState(60);
+  const [cbThreshold, setCbThreshold] = useState(28);
   const [cbBlur, setCbBlur] = useState(1);
   const [cbThickness, setCbThickness] = useState(1);
   const [cbResult, setCbResult] = useState(null);
@@ -579,7 +599,7 @@ export default function MosaicGenerator() {
     if (!img) return;
     setCbProcessing(true);
     setTimeout(() => {
-      const out = detectEdges(img, cbDetail, cbThreshold, cbBlur, cbThickness);
+      const out = detectColourGroupOutlines(img, cbDetail, cbThreshold, cbBlur, cbThickness);
       setCbResult(out);
       setCbProcessing(false);
     }, 20);
@@ -940,18 +960,18 @@ export default function MosaicGenerator() {
         {imageSrc && appMode === "coloring" && (
           <>
             <div style={{ fontSize: 12, color: "#6B6B60", lineHeight: 1.5 }}>
-              Convert your image into a clean black-and-white page. Adjust the controls to preserve the details you want to colour.
+              Turn broad colour groups into smooth, printable outlines. Fine texture is intentionally removed.
             </div>
             <div className="flex flex-col gap-2">
               <label className="uppercase font-semibold flex justify-between" style={{ fontSize: 11, letterSpacing: "0.08em" }}><span>Detail</span><span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>{cbDetail}px</span></label>
               <input type="range" min={400} max={1600} step={50} value={cbDetail} onChange={(e) => setCbDetail(Number(e.target.value))} />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="uppercase font-semibold flex justify-between" style={{ fontSize: 11, letterSpacing: "0.08em" }}><span>Edge sensitivity</span><span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>{cbThreshold}</span></label>
-              <input type="range" min={20} max={180} step={5} value={cbThreshold} onChange={(e) => setCbThreshold(Number(e.target.value))} />
+              <label className="uppercase font-semibold flex justify-between" style={{ fontSize: 11, letterSpacing: "0.08em" }}><span>Colour separation</span><span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>{cbThreshold}</span></label>
+              <input type="range" min={5} max={100} step={1} value={cbThreshold} onChange={(e) => setCbThreshold(Number(e.target.value))} />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="uppercase font-semibold flex justify-between" style={{ fontSize: 11, letterSpacing: "0.08em" }}><span>Smoothing</span><span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>{cbBlur}</span></label>
+              <label className="uppercase font-semibold flex justify-between" style={{ fontSize: 11, letterSpacing: "0.08em" }}><span>Group smoothing</span><span style={{ fontFamily: "ui-monospace, monospace", color: TEAL }}>{cbBlur}</span></label>
               <input type="range" min={0} max={4} step={1} value={cbBlur} onChange={(e) => setCbBlur(Number(e.target.value))} />
             </div>
             <div className="flex flex-col gap-2">
