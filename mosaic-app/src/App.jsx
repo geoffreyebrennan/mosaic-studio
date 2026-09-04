@@ -532,7 +532,7 @@ export default function MosaicGenerator() {
   const [lineThickness, setLineThickness] = useState(2);
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState(null);
-  const [selectedCell, setSelectedCell] = useState(null);
+  const [selectedCells, setSelectedCells] = useState([]);
   const [cbDetail, setCbDetail] = useState(900);
   const [cbThreshold, setCbThreshold] = useState(28);
   const [cbBlur, setCbBlur] = useState(1);
@@ -585,7 +585,7 @@ export default function MosaicGenerator() {
         .filter((p) => p.count > 0);
 
       setResult({ cols, rows, assignments, palette, polygons: shape === "voronoi" ? voronoiPolygons(cols, rows) : null });
-      setSelectedCell(null);
+      setSelectedCells([]);
       setProcessing(false);
     }, 20);
   }, [gridCols, imgDims, shape]);
@@ -632,12 +632,21 @@ export default function MosaicGenerator() {
     URL.revokeObjectURL(url);
   }, [cbResult]);
 
+  const selectCell = useCallback((cellIndex, event) => {
+    setSelectedCells((currentSelection) => {
+      if (!event.ctrlKey) return [cellIndex];
+      return currentSelection.includes(cellIndex)
+        ? currentSelection.filter((selectedIndex) => selectedIndex !== cellIndex)
+        : [...currentSelection, cellIndex];
+    });
+  }, []);
+
   const updateCellColor = useCallback((paletteIndex) => {
-    if (selectedCell === null) return;
+    if (selectedCells.length === 0) return;
     setResult((currentResult) => {
       if (!currentResult) return currentResult;
       const assignments = [...currentResult.assignments];
-      assignments[selectedCell] = paletteIndex;
+      selectedCells.forEach((cellIndex) => { assignments[cellIndex] = paletteIndex; });
       const counts = new Array(FIXED_PALETTE.length).fill(0);
       assignments.forEach((idx) => counts[idx]++);
       const palette = FIXED_PALETTE
@@ -645,7 +654,7 @@ export default function MosaicGenerator() {
         .filter((p) => p.count > 0);
       return { ...currentResult, assignments, palette };
     });
-  }, [selectedCell]);
+  }, [selectedCells]);
 
   const downloadPng = useCallback((mode) => {
     if (!result || (shape === "voronoi" && !result.polygons)) return;
@@ -896,14 +905,14 @@ export default function MosaicGenerator() {
             <div className="flex flex-col gap-2">
               <label style={{ fontSize: 11, letterSpacing: "0.08em" }} className="uppercase font-semibold flex justify-between">
                 <span>Edit cell colour</span>
-                {selectedCell !== null && <span style={{ color: TEAL }}>#{selectedCell + 1}</span>}
+                {selectedCells.length > 0 && <span style={{ color: TEAL }}>{selectedCells.length === 1 ? `#${selectedCells[0] + 1}` : `${selectedCells.length} selected`}</span>}
               </label>
-              {selectedCell === null ? (
-                <div style={{ fontSize: 11, color: "#8A8676", lineHeight: 1.4 }}>Select a cell in the mosaic to recolour it.</div>
+              {selectedCells.length === 0 ? (
+                <div style={{ fontSize: 11, color: "#8A8676", lineHeight: 1.4 }}>Select a cell to recolour it. Hold Ctrl while clicking to add or remove cells.</div>
               ) : (
                 <div className="grid grid-cols-8 gap-1.5">
                   {FIXED_PALETTE.map((p, i) => {
-                    const isSelected = result.assignments[selectedCell] === i;
+                    const isSelected = selectedCells.every((cellIndex) => result.assignments[cellIndex] === i);
                     return (
                       <button key={p.code} type="button" title={`${p.name} (${p.code})`} aria-label={`Use ${p.name}`} onClick={() => updateCellColor(i)}
                         style={{ background: p.hex, boxShadow: isSelected ? `0 0 0 2px ${PANEL}, 0 0 0 3px ${INK}` : "none" }}
@@ -1038,9 +1047,9 @@ export default function MosaicGenerator() {
                       const points = polygon.map(({ x, y }) => `${x * cellPx},${y * cellPx}`).join(" ");
                       const center = polygon.reduce((sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }), { x: 0, y: 0 });
                       const cx = center.x / polygon.length * cellPx, cy = center.y / polygon.length * cellPx;
-                      const selected = selectedCell === i;
+                      const selected = selectedCells.includes(i);
                       return (
-                        <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
+                        <g key={i} onClick={(event) => selectCell(i, event)} style={{ cursor: "pointer" }}>
                           <polygon points={points} fill={view === "color" || view === "colouring-book" ? p.hex : numberFill(p)}
                             stroke={selected ? MUSTARD : view === "color" || view === "colouring-book" ? (view === "colouring-book" ? "#000" : "rgba(255,255,255,0.22)") : "rgba(128,128,128,0.6)"}
                             strokeWidth={selected ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.6, lineThickness)} />
@@ -1064,9 +1073,9 @@ export default function MosaicGenerator() {
                       const col = i % result.cols, row = (i - col) / result.cols;
                       const { points, cx, cy } = trianglePoints(col, row, cellPx);
                       const poly = points.map(([x, y]) => `${x},${y}`).join(" ");
-                      const selected = selectedCell === i;
+                      const selected = selectedCells.includes(i);
                       return (
-                        <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
+                        <g key={i} onClick={(event) => selectCell(i, event)} style={{ cursor: "pointer" }}>
                           <polygon points={poly} fill={view === "color" || view === "colouring-book" ? p.hex : numberFill(p)}
                             stroke={selected ? MUSTARD : view === "color" || view === "colouring-book" ? (view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)") : "rgba(255,255,255,0.4)"}
                             strokeWidth={selected ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} />
@@ -1097,15 +1106,15 @@ export default function MosaicGenerator() {
                       const poly = `${top[0]},${top[1]} ${right[0]},${right[1]} ${bottom[0]},${bottom[1]} ${left[0]},${left[1]}`;
                       if (view === "color" || view === "colouring-book") {
                         return (
-                          <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined }}>
-                            <polygon points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} />
+                          <g key={i} onClick={(event) => selectCell(i, event)} style={{ cursor: "pointer", outline: selectedCells.includes(i) ? `2px solid ${MUSTARD}` : undefined }}>
+                            <polygon points={poly} fill={p.hex} stroke={selectedCells.includes(i) ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCells.includes(i) ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} />
                             <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke={view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} />
                           </g>
                         );
                       }
                       return (
-                        <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined }}>
-                          <polygon points={poly} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
+                        <g key={i} onClick={(event) => selectCell(i, event)} style={{ cursor: "pointer", outline: selectedCells.includes(i) ? `2px solid ${MUSTARD}` : undefined }}>
+                          <polygon points={poly} fill={numberFill(p)} stroke={selectedCells.includes(i) ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCells.includes(i) ? 2 : strokeWidth(0.75, lineThickness)} />
                           <line x1={left[0]} y1={left[1]} x2={right[0]} y2={right[1]} stroke="rgba(255,255,255,0.4)" strokeWidth={strokeWidth(0.75, lineThickness)} />
                           {showNum && p.numberCode && (
                             <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
@@ -1133,10 +1142,10 @@ export default function MosaicGenerator() {
                       const { cx, cy } = hexCenter(col, row, cellPx);
                       const pts = hexPoints(cx, cy, R * 0.98);
                       const poly = pts.map(([x, y]) => `${x},${y}`).join(" ");
-                      if (view === "color" || view === "colouring-book") return <polygon key={i} points={poly} fill={p.hex} stroke={selectedCell === i ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
+                      if (view === "color" || view === "colouring-book") return <polygon key={i} points={poly} fill={p.hex} stroke={selectedCells.includes(i) ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCells.includes(i) ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} onClick={(event) => selectCell(i, event)} style={{ cursor: "pointer" }} />;
                       return (
-                        <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
-                          <polygon points={poly} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
+                        <g key={i} onClick={(event) => selectCell(i, event)} style={{ cursor: "pointer" }}>
+                          <polygon points={poly} fill={numberFill(p)} stroke={selectedCells.includes(i) ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCells.includes(i) ? 2 : strokeWidth(0.75, lineThickness)} />
                           {showNum && p.numberCode && (
                             <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                               fontSize={Math.max(6, R * 0.62)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>
@@ -1161,10 +1170,10 @@ export default function MosaicGenerator() {
                       const p = FIXED_PALETTE[idx];
                       const col = i % result.cols, row = (i - col) / result.cols;
                       const { cx, cy } = circleCenter(col, row, cellPx);
-                      if (view === "color" || view === "colouring-book") return <circle key={i} cx={cx} cy={cy} r={R} fill={p.hex} stroke={selectedCell === i ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCell === i ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }} />;
+                      if (view === "color" || view === "colouring-book") return <circle key={i} cx={cx} cy={cy} r={R} fill={p.hex} stroke={selectedCells.includes(i) ? MUSTARD : view === "colouring-book" ? "#000" : "rgba(255,255,255,0.15)"} strokeWidth={selectedCells.includes(i) ? 2 : view === "colouring-book" ? strokeWidth(1.5, lineThickness) : strokeWidth(0.5, lineThickness)} onClick={(event) => selectCell(i, event)} style={{ cursor: "pointer" }} />;
                       return (
-                        <g key={i} onClick={() => setSelectedCell(i)} style={{ cursor: "pointer" }}>
-                          <circle cx={cx} cy={cy} r={R} fill={numberFill(p)} stroke={selectedCell === i ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCell === i ? 2 : strokeWidth(0.75, lineThickness)} />
+                        <g key={i} onClick={(event) => selectCell(i, event)} style={{ cursor: "pointer" }}>
+                          <circle cx={cx} cy={cy} r={R} fill={numberFill(p)} stroke={selectedCells.includes(i) ? MUSTARD : "rgba(128,128,128,0.5)"} strokeWidth={selectedCells.includes(i) ? 2 : strokeWidth(0.75, lineThickness)} />
                           {showNum && p.numberCode && (
                             <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                               fontSize={Math.max(6, R * 0.62)} fontFamily="ui-monospace, monospace" fontWeight="700" fill={numberColor(p.hex)}>
@@ -1185,13 +1194,13 @@ export default function MosaicGenerator() {
                     const inner = { width: innerSize, height: innerSize, ...shapeStyle(shape) };
                     if (view === "color" || view === "colouring-book") {
                       return (
-                        <div key={i} onClick={() => setSelectedCell(i)} style={{ width: cellPx, height: cellPx, cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined, outlineOffset: -2 }} className="flex items-center justify-center">
+                        <div key={i} onClick={(event) => selectCell(i, event)} style={{ width: cellPx, height: cellPx, cursor: "pointer", outline: selectedCells.includes(i) ? `2px solid ${MUSTARD}` : undefined, outlineOffset: -2 }} className="flex items-center justify-center">
                           <div style={{ ...inner, background: p.hex, outline: cellPx > 8 ? `${strokeWidth(view === "colouring-book" ? 1.5 : 0.5, lineThickness)}px solid ${view === "colouring-book" ? "#000" : "rgba(255,255,255,0.10)"}` : "none" }} />
                         </div>
                       );
                     }
                     return (
-                      <div key={i} onClick={() => setSelectedCell(i)} style={{ width: cellPx, height: cellPx, cursor: "pointer", outline: selectedCell === i ? `2px solid ${MUSTARD}` : undefined, outlineOffset: -2 }} className="flex items-center justify-center">
+                      <div key={i} onClick={(event) => selectCell(i, event)} style={{ width: cellPx, height: cellPx, cursor: "pointer", outline: selectedCells.includes(i) ? `2px solid ${MUSTARD}` : undefined, outlineOffset: -2 }} className="flex items-center justify-center">
                         <div style={{
                           ...inner, background: numberFill(p),
                           border: `${strokeWidth(0.5, lineThickness)}px solid rgba(128,128,128,0.5)`,
